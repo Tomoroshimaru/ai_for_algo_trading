@@ -158,3 +158,40 @@ class ScenarioResult:
     contributors: list[dict] = field(default_factory=list)
     book: list[BookLeg] = field(default_factory=list)
     forward_curve: list[ForwardPoint] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class GreekRow:
+    """Position-level price + Greeks (roadmap Step 11)."""
+    label: str
+    expiry: str
+    strike: float
+    right: str
+    qty: float
+    multiplier: float
+    vol: float
+    price: float
+    # per-position (qty * multiplier * unit greek), market conventions:
+    delta: float          # $ per 1.0 move in forward
+    gamma: float          # delta change per 1.0 move
+    vega: float           # $ per 1 vol point (0.01)
+    theta: float          # $ per calendar day
+
+
+@dataclass(frozen=True)
+class RiskReport:
+    """Aggregated risk table for a book (roadmap Step 11).
+
+    Base spot + forward curve are REAL (Steps 5-6); book / IV / analytic Greeks
+    are SYNTHETIC until the IV solver (Step 8) and risk engine (Step 11) land.
+    """
+    source: str
+    underlying: str
+    spot: float
+    rows: list[GreekRow] = field(default_factory=list)
+    net_delta: float = 0.0
+    net_gamma: float = 0.0
+    net_vega: float = 0.0
+    net_theta: float = 0.0
+    gross_delta: float = 0.0
+    net_value: float = 0.0

@@ -22,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 from app.data.providers import AppProvider
 from app.data.observability import ObservabilityProvider
 from app.data.scenario import ScenarioProvider
+from app.data.risk import RiskProvider
 
 APP_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Volatility Infra — Operator Console")
@@ -30,6 +31,7 @@ templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 provider = AppProvider()
 obs = ObservabilityProvider()
 scen = ScenarioProvider()
+risk_provider = RiskProvider()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -194,3 +196,18 @@ def _scenario_heatmap_div(res) -> str:
         xaxis_title="spot shock", yaxis_title="vol shock (abs pts)",
     )
     return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)
+
+
+@app.get("/risk", response_class=HTMLResponse)
+def risk_page(request: Request, underlying: str | None = None):
+    universe = provider.get_universe_summary()
+    symbols = [u["symbol"] for u in universe.underlyings]
+    sym = underlying or (symbols[0] if symbols else "SPY")
+    return templates.TemplateResponse(request, "risk.html", {
+        "symbols": symbols, "sym": sym, "r": risk_provider.get_risk(sym),
+    })
+
+
+@app.get("/api/risk/{underlying}")
+def api_risk(underlying: str):
+    return JSONResponse(asdict(risk_provider.get_risk(underlying)))

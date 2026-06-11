@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Risk & Greeks{% endblock %}
+{% block content %}
+<h1>Risk &amp; Greeks <span class="muted small">(Step 11)</span></h1>
+<form method="get" class="controls">
+  <label>Underlying
+    <select name="underlying" onchange="this.form.submit()">
+      {% for s in symbols %}<option value="{{ s }}" {{ 'selected' if s==sym }}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <a class="json" href="/api/risk/{{ sym }}" target="_blank">view JSON →</a>
+</form>
+<p class="prov">{{ r.source }}</p>
+
+<div class="grid4">
+  <div class="card kpi"><span>{{ "{:,.1f}".format(r.net_delta) }}</span><label>net delta (Δ/fwd)</label></div>
+  <div class="card kpi"><span>{{ "{:,.3f}".format(r.net_gamma) }}</span><label>net gamma</label></div>
+  <div class="card kpi"><span>{{ "{:,.0f}".format(r.net_vega) }}</span><label>net vega (/vol pt)</label></div>
+  <div class="card kpi"><span>{{ "{:,.0f}".format(r.net_theta) }}</span><label>net theta (/day)</label></div>
+  <div class="card kpi"><span>{{ "{:,.1f}".format(r.gross_delta) }}</span><label>gross delta</label></div>
+  <div class="card kpi"><span>{{ "{:,.0f}".format(r.net_value) }}</span><label>net book value</label></div>
+</div>
+
+<h2>Positions <span class="muted small">(synthetic book · spot {{ "%.2f"|format(r.spot) }})</span></h2>
+<table class="data">
+  <thead><tr><th>leg</th><th>right</th><th>qty</th><th>vol</th><th>price</th><th>delta</th><th>gamma</th><th>vega</th><th>theta</th></tr></thead>
+  <tbody>
+  {% for row in r.rows %}
+    <tr>
+      <td>{{ row.label }}</td><td>{{ row.right }}</td><td>{{ "%g"|format(row.qty) }}</td>
+      <td>{{ "%.4f"|format(row.vol) }}</td><td>{{ "%.4f"|format(row.price) }}</td>
+      <td class="{{ 'bad' if row.delta < 0 else 'ok' }}">{{ "{:,.1f}".format(row.delta) }}</td>
+      <td>{{ "{:,.3f}".format(row.gamma) }}</td>
+      <td class="{{ 'bad' if row.vega < 0 else 'ok' }}">{{ "{:,.0f}".format(row.vega) }}</td>
+      <td class="{{ 'ok' if row.theta > 0 else 'bad' }}">{{ "{:,.1f}".format(row.theta) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="muted small">delta wrt forward · vega per 1 vol point (0.01) · theta per calendar day · undiscounted Black-76 (DF=1).</p>
+{% endblock %}
