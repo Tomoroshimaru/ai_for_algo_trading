@@ -180,6 +180,18 @@ _QC_RESULTS = _with_common([
 ])
 
 
+_SURFACE_GRID = _with_common([
+    pa.field("snapshot_ts", _TS, nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("expiry", pa.string(), nullable=False),
+    pa.field("log_moneyness", pa.float64(), nullable=False),
+    pa.field("ttm_years", pa.float64()),
+    pa.field("total_variance", pa.float64()),
+    pa.field("iv", pa.float64()),
+    pa.field("model", pa.string()),
+    pa.field("source_session_id", pa.string()),
+])
+
 DATASETS: dict[str, Dataset] = {
     "raw_events": Dataset("raw_events", DataLayer.RAW, _RAW_EVENTS),
     "market_state": Dataset("market_state", DataLayer.NORMALIZED, _MARKET_STATE),
@@ -187,6 +199,7 @@ DATASETS: dict[str, Dataset] = {
     "forward_diagnostics": Dataset("forward_diagnostics", DataLayer.DERIVED, _FORWARD_DIAGNOSTICS),
     "iv_points": Dataset("iv_points", DataLayer.DERIVED, _IV_POINTS),
     "surface_params": Dataset("surface_params", DataLayer.DERIVED, _SURFACE_PARAMS),
+    "surface_grid": Dataset("surface_grid", DataLayer.DERIVED, _SURFACE_GRID),
     "model_prices": Dataset("model_prices", DataLayer.DERIVED, _MODEL_PRICES),
     "greeks": Dataset("greeks", DataLayer.DERIVED, _GREEKS),
     "scenarios": Dataset("scenarios", DataLayer.DERIVED, _SCENARIOS),

@@ -125,3 +125,25 @@ ABOVE_BOUND, LOW_OI, LOW_VOLUME, MONOTONICITY_VIOLATION, PARITY_OUTLIER.
 
 Reference round-trip recovers injected sigma to ~1e-11; finite price
 perturbations move IV monotonically and bounded (no numerical explosions).
+
+## Surface engine & parameter storage (Step 9)
+`src/surface/engine.py` builds volatility surfaces from solved IV points and
+keeps the raw points and the fitted form strictly separate (junior note: raw
+points are never discarded - operators must compare fit vs calibration inputs).
+- **Coordinates**: per maturity, points -> log-moneyness `k=log(K/F)` and total
+  variance `w = iv^2 * T`.
+- **Fit**: per-slice closed-form least squares `w(k)=a+b*k+c*k^2`
+  (`model=poly2_totalvar`). Chosen over nonlinear SVI because the acceptance
+  criterion requires identical params on repeated runs - OLS is exactly
+  reproducible. SVI is a documented upgrade path.
+- **Cross-maturity**: `total_var_at` interpolates total variance linearly in T
+  between fitted slices (variance space).
+- **Diagnostics / quality flags** (per maturity): rmse_iv, max_err_iv, n_points,
+  n_rejected, butterfly_ok (convexity c>=0), and warnings SPARSE_SLICE,
+  NONCONVEX_VARIANCE, NONPOSITIVE_VARIANCE, POOR_FIT, CALENDAR_VIOLATION (ATM
+  total variance must be non-decreasing in T).
+- **Storage**: `surface_params` (tidy: a,b,c + metrics + flags + warnings per
+  expiry) and `surface_grid` (reconstructed regular log-moneyness grid). Raw
+  `iv_points` remain available for audit.
+- **Operator plotting**: `slice_comparison` returns tidy raw-vs-fit tables;
+  `render_slice_png` renders a raw-points vs fitted-slice chart (matplotlib).
