@@ -261,3 +261,29 @@ class ScenarioBoard:
     contributors: list[dict] = field(default_factory=list)
     forward_curve: list[ForwardPoint] = field(default_factory=list)
     book: list[BookLeg] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class FreshnessItem:
+    """Freshness/coverage of one tracked dataset."""
+    dataset: str
+    present: bool
+    trade_date: str | None = None
+    session_id: str | None = None
+    snapshot_ts: str | None = None
+    age_sec: float | None = None
+    rows: int = 0
+    status: str = "missing"   # fresh | stale | missing
+
+
+@dataclass(frozen=True)
+class FreshnessReport:
+    """Data-currency snapshot for the operator console (Roadmap p.45)."""
+    mode: str                 # LIVE | REPLAY | DEMO | UNKNOWN
+    generated_at: str
+    tolerance_sec: int
+    items: list[FreshnessItem] = field(default_factory=list)
+    worst_age_sec: float | None = None
+    n_present: int = 0
+    n_total: int = 0
+    overall: str = "missing"  # fresh | stale | missing

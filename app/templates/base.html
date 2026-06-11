@@ -22,7 +22,57 @@
       <a href="/observability">Observability</a>
     </nav>
   </header>
+  <div id="freshness" class="freshbar" role="status" aria-live="polite">
+    <span class="fresh-load">loading data freshness…</span>
+    <label class="fresh-toggle"><input type="checkbox" id="autoRefresh"/> auto-refresh <span id="arEvery">30s</span></label>
+  </div>
   <main id="main">{% block content %}{% endblock %}</main>
   <footer>Strategy-agnostic build · data bound to preliminary backend (Steps 1–2); pending steps clearly labeled.</footer>
+  <script>
+  (function () {
+    var REFRESH_MS = 30000;
+    function fmtAge(sec) {
+      if (sec == null) return "n/a";
+      if (sec < 90) return Math.round(sec) + "s";
+      if (sec < 5400) return Math.round(sec / 60) + "m";
+      return (sec / 3600).toFixed(1) + "h";
+    }
+    function render(d) {
+      var bar = document.getElementById("freshness");
+      if (!bar) return;
+      var cls = d.overall === "fresh" ? "ok" : (d.overall === "stale" ? "warn" : "bad");
+      var modeCls = d.mode === "LIVE" ? "ok" : (d.mode === "REPLAY" ? "warn" : "muted");
+      var html = "";
+      html += '<span class=\'pill ' + modeCls + '\'>' + d.mode + '</span>';
+      html += '<span class=\'pill ' + cls + '\'>data ' + d.overall + '</span>';
+      html += '<span class=\'fresh-txt\'>as-of ' + fmtAge(d.worst_age_sec) + ' ago';
+      html += ' \u00b7 ' + d.n_present + '/' + d.n_total + ' datasets';
+      html += ' \u00b7 tol ' + Math.round(d.tolerance_sec / 60) + 'm</span>';
+      var lab = bar.querySelector(".fresh-toggle");
+      bar.innerHTML = html;
+      bar.className = "freshbar " + cls;
+      if (lab) bar.appendChild(lab);
+    }
+    function poll() {
+      fetch("/api/freshness").then(function (r) { return r.json(); })
+        .then(render).catch(function () {});
+    }
+    var cb = document.getElementById("autoRefresh");
+    var on = localStorage.getItem("ar") === "1";
+    if (cb) { cb.checked = on; cb.addEventListener("change", function () {
+      localStorage.setItem("ar", cb.checked ? "1" : "0"); schedule();
+    }); }
+    var timer = null;
+    function schedule() {
+      if (timer) { clearInterval(timer); timer = null; }
+      if (localStorage.getItem("ar") === "1") {
+        timer = setInterval(function () { location.reload(); }, REFRESH_MS);
+      }
+    }
+    poll();
+    setInterval(poll, REFRESH_MS);
+    schedule();
+  })();
+  </script>
 </body>
 </html>

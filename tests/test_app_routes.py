@@ -26,7 +26,7 @@ client = TestClient(app)
 CORE_ROUTES = ["/", "/health", "/observability", "/scenario", "/risk", "/qc"]
 # routes that need a universe/surface; tolerate 404/503 on an empty warehouse
 DATA_ROUTES = ["/surfaces", "/surface3d"]
-API_ROUTES = ["/api/risk/SPY", "/api/scenario/SPY", "/api/observability"]
+API_ROUTES = ["/api/risk/SPY", "/api/scenario/SPY", "/api/observability", "/api/freshness"]
 
 
 @pytest.mark.parametrize("route", CORE_ROUTES)
@@ -60,3 +60,17 @@ def test_control_tower_lists_every_view():
     for label in ("Connectivity", "Universe", "Observability", "QC",
                   "Vol Surface", "Scenario", "Risk"):
         assert label in body, f"Control Tower missing tile: {label}"
+
+
+def test_freshness_api_shape():
+    d = client.get("/api/freshness").json()
+    assert d["mode"] in ("LIVE", "REPLAY", "DEMO", "UNKNOWN")
+    assert d["overall"] in ("fresh", "stale", "missing")
+    assert d["n_total"] >= 1 and len(d["items"]) == d["n_total"]
+
+
+def test_freshness_bar_on_every_page():
+    for route in ("/", "/risk", "/scenario", "/qc"):
+        body = client.get(route).text
+        assert 'id="freshness"' in body, f"{route} missing freshness bar"
+        assert "/api/freshness" in body, f"{route} missing freshness poll"

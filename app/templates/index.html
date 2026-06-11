@@ -16,4 +16,23 @@
   </a>
   {% endfor %}
 </div>
+
+{% if fresh %}
+<h2>Data coverage &amp; freshness <span class="muted small">(source {{ fresh.mode }} · tolerance {{ (fresh.tolerance_sec/60)|round|int }}m)</span></h2>
+<table class="data">
+  <thead><tr><th>dataset</th><th>status</th><th>trade date</th><th>session</th><th>age</th><th>rows</th></tr></thead>
+  <tbody>
+  {% for i in fresh.items %}
+    <tr>
+      <td class="small">{{ i.dataset }}</td>
+      <td class="{{ 'ok' if i.status=='fresh' else ('bad' if i.status=='missing' else 'warn') }}">{{ i.status }}</td>
+      <td>{{ i.trade_date or '—' }}</td>
+      <td class="small">{{ i.session_id or '—' }}</td>
+      <td>{% if i.age_sec is not none %}{{ (i.age_sec/60)|round(1) }}m{% else %}—{% endif %}</td>
+      <td>{{ i.rows }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% endblock %}

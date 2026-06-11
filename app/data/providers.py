@@ -23,6 +23,8 @@ from universe.store import UniverseStore
 from storage.parquet_store import ParquetStore
 
 from app.data.contracts import (
+    FreshnessItem,
+    FreshnessReport,
     HealthMetrics,
     SurfacePoint,
     SurfaceSlice,
@@ -135,6 +137,68 @@ class AppProvider:
         dates = sorted(d.name.split("=")[1] for d in root.glob("trade_date=*"))
         return dates[-1] if dates else None
 
+    # ---- data freshness / currency (Roadmap p.45) ----------------------
+    _FRESH_DATASETS = [
+        "raw_events", "market_state", "forwards", "iv_points",
+        "surface_grid", "greeks", "risk_aggregates", "scenario_summary", "qc_results",
+    ]
+    _TS_COLS = ["snapshot_ts", "collector_ts", "receipt_ts", "check_ts", "as_of_ts"]
+
+    @staticmethod
+    def _classify_mode(session: str | None) -> str:
+        s = (session or "").lower()
+        if s.startswith("replay") or "backfill" in s:
+            return "REPLAY"
+        if s.startswith(("live", "stream")):
+            return "LIVE"
+        if s.startswith("demo") or s in ("", "?"):
+            return "DEMO"
+        return "UNKNOWN"
+
+    def get_freshness(self, tolerance_sec: int = 900) -> FreshnessReport:
+        now = dt.datetime.now(dt.timezone.utc)
+        items: list[FreshnessItem] = []
+        worst = None
+        present = 0
+        mode_session = None
+        for name in self._FRESH_DATASETS:
+            td = self._pq_latest(name)
+            if not td:
+                items.append(FreshnessItem(dataset=name, present=False, status="missing"))
+                continue
+            df = self._pq.read(name, trade_date=td)
+            if df is None or df.empty:
+                items.append(FreshnessItem(dataset=name, present=False,
+                                           trade_date=td, status="missing"))
+                continue
+            present += 1
+            sess = str(df["source_session_id"].iloc[0]) if "source_session_id" in df else None
+            tcol = next((c for c in self._TS_COLS if c in df.columns), None)
+            ts = None
+            age = None
+            if tcol is not None:
+                ts = _pd_max_ts(df[tcol])
+                if ts is not None:
+                    age = (now - ts).total_seconds()
+                    worst = age if worst is None else max(worst, age)
+            status = "fresh" if (age is not None and age <= tolerance_sec) else "stale"
+            if name in ("market_state", "raw_events") and mode_session is None and sess:
+                mode_session = sess
+            items.append(FreshnessItem(
+                dataset=name, present=True, trade_date=td, session_id=sess,
+                snapshot_ts=ts.isoformat() if ts is not None else None,
+                age_sec=round(age, 1) if age is not None else None,
+                rows=int(len(df)), status=status,
+            ))
+        overall = "missing" if present == 0 else (
+            "fresh" if (worst is not None and worst <= tolerance_sec) else "stale")
+        return FreshnessReport(
+            mode=self._classify_mode(mode_session), generated_at=now.isoformat(),
+            tolerance_sec=tolerance_sec, items=items,
+            worst_age_sec=round(worst, 1) if worst is not None else None,
+            n_present=present, n_total=len(self._FRESH_DATASETS), overall=overall,
+        )
+
     def surface_expiries(self, underlying: str) -> list[str]:
         """Expiries that have a real fitted surface; falls back to the universe."""
         td = self._pq_latest("surface_grid")
@@ -242,3 +306,14 @@ class AppProvider:
             forward=forward, tenor_years=tenor, points=points,
             fitted_k=fitted_k, fitted_iv=fitted_iv,
         )
+
+
+def _pd_max_ts(col):
+    import pandas as pd
+    try:
+        s = pd.to_datetime(col, utc=True, errors="coerce").dropna()
+        if s.empty:
+            return None
+        return s.max().to_pydatetime()
+    except Exception:  # noqa: BLE001
+        return None

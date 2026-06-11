@@ -38,7 +38,8 @@ qc_provider = QCProvider()
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {"tiles": _control_tower()})
+    return templates.TemplateResponse(request, "index.html",
+        {"tiles": _control_tower(), "fresh": provider.get_freshness()})
 
 
 @app.get("/health", response_class=HTMLResponse)
@@ -171,6 +172,11 @@ def scenario_page(request: Request, underlying: str | None = None):
     return templates.TemplateResponse(request, "scenario.html", {
         "symbols": symbols, "sym": sym, "b": board, "chart": _scenario_chart_div(board),
     })
+
+
+@app.get("/api/freshness")
+def api_freshness():
+    return JSONResponse(asdict(provider.get_freshness()))
 
 
 @app.get("/api/scenario/{underlying}")
