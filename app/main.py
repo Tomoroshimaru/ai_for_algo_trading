@@ -166,16 +166,16 @@ def scenario_page(request: Request, underlying: str | None = None):
     universe = provider.get_universe_summary()
     symbols = [u["symbol"] for u in universe.underlyings]
     sym = underlying or (symbols[0] if symbols else "SPY")
-    res = scen.run_scenario(sym)
-    heatmap = _scenario_heatmap_div(res)
+    board = scen.get_scenario_board(sym)
     return templates.TemplateResponse(request, "scenario.html", {
-        "symbols": symbols, "sym": sym, "res": res, "heatmap": heatmap,
+        "symbols": symbols, "sym": sym, "b": board, "chart": _scenario_chart_div(board),
     })
 
 
 @app.get("/api/scenario/{underlying}")
 def api_scenario(underlying: str):
-    return JSONResponse(asdict(scen.run_scenario(underlying)))
+    b = scen.get_scenario_board(underlying)
+    return JSONResponse(asdict(b) if b else {"source": "no scenario data"})
 
 
 def _scenario_heatmap_div(res) -> str:
@@ -289,11 +289,13 @@ def _control_tower() -> list[dict]:
     except Exception as exc:  # noqa: BLE001
         tile("Vol Surface (2D/3D)", "/surface3d", "partial", "unavailable", str(exc)[:60])
     try:
-        sc = scen.run_scenario("SPY")
-        sc_real = "REAL" in sc.source or sc.source.startswith("book")
-        tile("Scenario / Stress", "/scenario", "real" if sc_real else "partial",
-             f"worst PnL {sc.worst_pnl:,.0f}",
-             "real book + parametric spot×vol stress")
+        sb = scen.get_scenario_board("SPY")
+        if sb:
+            tile("Scenario / Stress", "/scenario", "real",
+                 f"worst {sb.worst_pnl:,.0f} ({sb.worst_label})",
+                 f"{len(sb.rows)} scenarios · full reval + greeks approx")
+        else:
+            tile("Scenario / Stress", "/scenario", "partial", "no scenario data", "run Step 12")
     except Exception as exc:  # noqa: BLE001
         tile("Scenario / Stress", "/scenario", "partial", "unavailable", str(exc)[:60])
     try:
@@ -306,3 +308,24 @@ def _control_tower() -> list[dict]:
     except Exception as exc:  # noqa: BLE001
         tile("Risk & Greeks", "/risk", "partial", "unavailable", str(exc)[:60])
     return tiles
+
+
+def _scenario_chart_div(board) -> str:
+    if not board or not board.rows:
+        return "<p class=\'prov\'>No scenario_* datasets on disk — run the Step 12 engine.</p>"
+    rows = [r for r in board.rows if r.scenario_id != "base"]
+    rows = sorted(rows, key=lambda r: r.pnl_full)
+    labels = [r.label for r in rows]
+    full = [r.pnl_full for r in rows]
+    greeks = [r.pnl_greeks for r in rows]
+    colors = ["#f85149" if v < 0 else "#3fb950" for v in full]
+    fig = go.Figure()
+    fig.add_bar(x=labels, y=full, marker_color=colors, name="full reval")
+    fig.add_scatter(x=labels, y=greeks, mode="markers", name="greeks approx",
+                    marker=dict(symbol="diamond", size=8, color="#58a6ff"))
+    fig.update_layout(
+        template="plotly_dark", height=420, paper_bgcolor="#0d1117",
+        margin=dict(l=10, r=10, t=40, b=80), title="Scenario PnL — full reval vs greeks approx",
+        yaxis_title="portfolio PnL", legend=dict(orientation="h", y=1.1),
+    )
+    return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)

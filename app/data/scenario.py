@@ -17,6 +17,10 @@ from utils.config import load_config
 from storage.parquet_store import ParquetStore
 
 from app.data.contracts import (
+    ScenarioBoard,
+    ScenarioRow,
+)
+from app.data.contracts import (
     BookLeg,
     ForwardPoint,
     MarketBase,
@@ -207,4 +211,60 @@ class ScenarioProvider:
             pnl_matrix=matrix, worst_spot_shock=worst[0], worst_vol_shock=worst[1],
             worst_pnl=round(worst[2], 2), contributors=contributors, book=legs,
             forward_curve=curve,
+        )
+
+
+    # ---- REAL scenario board (Step 12 engine output) -------------------
+    def get_scenario_board(self, underlying: str) -> ScenarioBoard | None:
+        td = self._latest_trade_date("scenario_summary")
+        if not td:
+            return None
+        summ = self._pq.read("scenario_summary", trade_date=td)
+        if summ is None or summ.empty:
+            return None
+        summ = summ[(summ["underlying"] == underlying) & (summ["group_key"] == "underlying")]
+        if summ.empty:
+            return None
+        defs = self._pq.read("scenario_defs", trade_date=td)
+        dmap = {}
+        if defs is not None and not defs.empty:
+            for _, d in defs.iterrows():
+                dmap[str(d["scenario_id"])] = d
+        rows: list[ScenarioRow] = []
+        for _, r in summ.iterrows():
+            sid = str(r["scenario_id"])
+            d = dmap.get(sid)
+            rows.append(ScenarioRow(
+                scenario_id=sid,
+                label=str(d["label"]) if d is not None else sid,
+                family=str(r["family"]),
+                spot_shock=float(d["spot_shock"]) if d is not None else 0.0,
+                vol_shock=float(d["vol_shock"]) if d is not None else 0.0,
+                time_roll_days=float(d["time_roll_days"]) if d is not None else 0.0,
+                pnl_full=round(float(r["pnl_full"]), 2),
+                pnl_greeks=round(float(r["pnl_greeks"]), 2),
+                approx_error=round(float(r["approx_error"]), 2),
+                is_worst=bool(r["is_worst_case"]),
+            ))
+        # worst case: prefer engine flag, else min pnl_full
+        worst = next((x for x in rows if x.is_worst), None) or min(rows, key=lambda x: x.pnl_full)
+        # contributors at worst scenario (per-instrument full PnL)
+        contributors: list[dict] = []
+        base_value = 0.0
+        res = self._pq.read("scenario_results", trade_date=td)
+        if res is not None and not res.empty:
+            ru = res[res["underlying"] == underlying]
+            base_value = round(float(ru[ru["scenario_id"] == "base"]["base_value"].sum()), 2)
+            wc = ru[ru["scenario_id"] == worst.scenario_id].sort_values("pnl_full")
+            contributors = [{"leg": str(x["instrument_key"]), "pnl": round(float(x["pnl_full"]), 2)}
+                            for _, x in wc.iterrows()]
+        curve = self.get_forward_curve(underlying)
+        book = self._real_book(underlying, curve) or []
+        # order rows: base first, then worst-first
+        rows.sort(key=lambda x: (x.scenario_id != "base", x.pnl_full))
+        return ScenarioBoard(
+            source=f"REAL — scenario engine (Step 12): full reval + greeks approx @ {td}",
+            underlying=underlying, trade_date=td, base_value=base_value, rows=rows,
+            worst_label=worst.label, worst_pnl=worst.pnl_full, contributors=contributors,
+            forward_curve=curve, book=book,
         )

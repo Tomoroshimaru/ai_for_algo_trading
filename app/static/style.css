@@ -97,3 +97,5 @@ a:focus-visible,button:focus-visible,select:focus-visible,.tile:focus-visible{
   *{transition:none!important}
   .tile:hover{transform:none}
 }
+
+tr.worst td{background:rgba(248,81,73,.12)}

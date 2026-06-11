@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Scenario{% endblock %}
 {% block content %}
-<h1>Scenario / Stress <span class="muted small">(Step 12)</span></h1>
+<h1>Scenario / Stress <span class="muted small">(real — scenario engine, Step 12)</span></h1>
 <form method="get" class="controls">
   <label>Underlying
     <select name="underlying" onchange="this.form.submit()">
@@ -9,54 +9,72 @@
     </select>
   </label>
 </form>
-<p class="prov">{{ res.source }}</p>
-
+{% if b and b.rows %}
+<p class="prov">{{ b.source }}</p>
 <div class="grid4">
-  <div class="card kpi"><span>{{ "%.2f"|format(res.spot) }}</span><label>spot (real)</label></div>
-  <div class="card kpi"><span>{{ "{:,.0f}".format(res.base_value) }}</span><label>base book value</label></div>
-  <div class="card kpi"><span class="bad">{{ "{:,.0f}".format(res.worst_pnl) }}</span><label>worst-case PnL</label></div>
-  <div class="card kpi"><span>{{ "{:+.0%}".format(res.worst_spot_shock) }} / {{ "%+.2f"|format(res.worst_vol_shock) }}</span><label>worst spot / vol</label></div>
+  <div class="card kpi"><span>{{ "{:,.0f}".format(b.base_value) }}</span><label>base book value</label></div>
+  <div class="card kpi"><span class="bad">{{ "{:,.0f}".format(b.worst_pnl) }}</span><label>worst-case PnL</label></div>
+  <div class="card kpi"><span>{{ b.worst_label }}</span><label>worst scenario</label></div>
+  <div class="card kpi"><span>{{ b.rows|length }}</span><label>scenarios</label></div>
 </div>
 
-<div class="plot">{{ heatmap|safe }}</div>
+<div class="plot">{{ chart|safe }}</div>
 
 <div class="cols">
   <div>
+    <h2>Scenarios <span class="muted small">(full reval vs greeks approx)</span></h2>
+    <table class="data">
+      <thead><tr><th>scenario</th><th>family</th><th>spot</th><th>vol</th><th>roll</th><th>PnL full</th><th>PnL greeks</th><th>approx err</th></tr></thead>
+      <tbody>
+      {% for r in b.rows %}
+        <tr class="{{ 'worst' if r.label==b.worst_label else '' }}">
+          <td>{{ r.label }}</td><td class="small">{{ r.family }}</td>
+          <td>{{ "{:+.0%}".format(r.spot_shock) if r.spot_shock else '—' }}</td>
+          <td>{{ "%+.2f"|format(r.vol_shock) if r.vol_shock else '—' }}</td>
+          <td>{{ "%g"|format(r.time_roll_days) if r.time_roll_days else '—' }}</td>
+          <td class="{{ 'bad' if r.pnl_full < 0 else 'ok' }}">{{ "{:,.0f}".format(r.pnl_full) }}</td>
+          <td class="small">{{ "{:,.0f}".format(r.pnl_greeks) }}</td>
+          <td class="small">{{ "{:,.0f}".format(r.approx_error) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h2>Worst-case contributors <span class="muted small">({{ b.worst_label }})</span></h2>
+    <table class="data">
+      <thead><tr><th>instrument</th><th>PnL full</th></tr></thead>
+      <tbody>
+      {% for c in b.contributors %}
+        <tr><td class="small">{{ c.leg }}</td><td class="{{ 'bad' if c.pnl < 0 else 'ok' }}">{{ "{:,.0f}".format(c.pnl) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
     <h2>Forward curve <span class="muted small">(real, Step 6)</span></h2>
     <table class="data">
-      <thead><tr><th>expiry</th><th>forward</th><th>carry</th><th>method</th><th>pairs</th><th>reliable</th></tr></thead>
+      <thead><tr><th>expiry</th><th>forward</th><th>reliable</th></tr></thead>
       <tbody>
-      {% for fp in res.forward_curve %}
+      {% for fp in b.forward_curve %}
         <tr><td>{{ fp.expiry }}</td><td>{{ "%.3f"|format(fp.forward) }}</td>
-        <td>{{ "%.4f"|format(fp.implied_carry) if fp.implied_carry is not none else '—' }}</td>
-        <td class="small">{{ fp.method }}</td><td>{{ fp.n_pairs }}</td>
         <td class="{{ 'ok' if fp.is_reliable else 'bad' }}">{{ 'yes' if fp.is_reliable else 'no' }}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-  <div>
-    <h2>Worst-case contributors</h2>
-    <table class="data">
-      <thead><tr><th>leg</th><th>PnL</th></tr></thead>
-      <tbody>
-      {% for c in res.contributors %}
-        <tr><td>{{ c.leg }}</td><td class="{{ 'bad' if c.pnl < 0 else 'ok' }}">{{ "{:,.0f}".format(c.pnl) }}</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
 </div>
 
-<h2>Book <span class="muted small">({{ res.book|length }} positions · base vol &amp; forward real)</span></h2>
+<h2>Book <span class="muted small">({{ b.book|length }} real positions)</span></h2>
 <table class="data">
-  <thead><tr><th>leg</th><th>expiry</th><th>strike</th><th>right</th><th>qty</th><th>mult</th><th>vol</th><th>base price</th></tr></thead>
+  <thead><tr><th>instrument</th><th>expiry</th><th>strike</th><th>right</th><th>qty</th><th>vol</th><th>base price</th></tr></thead>
   <tbody>
-  {% for leg in res.book %}
-    <tr><td>{{ leg.label }}</td><td>{{ leg.expiry }}</td><td>{{ "%g"|format(leg.strike) }}</td>
-    <td>{{ leg.right }}</td><td>{{ "%g"|format(leg.qty) }}</td><td>{{ "%g"|format(leg.multiplier) }}</td>
+  {% for leg in b.book %}
+    <tr><td class="small">{{ leg.label }}</td><td>{{ leg.expiry }}</td><td>{{ "%g"|format(leg.strike) }}</td>
+    <td>{{ leg.right }}</td><td>{{ "%g"|format(leg.qty) }}</td>
     <td>{{ "%.4f"|format(leg.vol) }}</td><td>{{ "%.4f"|format(leg.base_price) }}</td></tr>
   {% endfor %}
   </tbody>
 </table>
+{% else %}
+<p class="prov">No scenario_* datasets on disk yet — run the Step 12 scenario engine to populate this view.</p>
+{% endif %}
 {% endblock %}

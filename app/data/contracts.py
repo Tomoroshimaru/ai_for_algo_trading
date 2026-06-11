@@ -230,3 +230,33 @@ class QCReport:
     by_check: list[dict] = field(default_factory=list)     # {check, caution, reject}
     failures: list[QCCheck] = field(default_factory=list)   # non-USABLE, non-FINAL
     parity_outliers: list[ParityOutlier] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ScenarioRow:
+    """One named scenario's portfolio outcome (real scenario engine, Step 12)."""
+    scenario_id: str
+    label: str
+    family: str
+    spot_shock: float
+    vol_shock: float
+    time_roll_days: float
+    pnl_full: float       # full repricing
+    pnl_greeks: float     # Taylor (greeks) approximation
+    approx_error: float   # pnl_greeks - pnl_full
+    is_worst: bool
+
+
+@dataclass(frozen=True)
+class ScenarioBoard:
+    """Real scenario board read from scenario_summary/defs/results (Step 12)."""
+    source: str
+    underlying: str
+    trade_date: str | None
+    base_value: float = 0.0
+    rows: list[ScenarioRow] = field(default_factory=list)
+    worst_label: str = ""
+    worst_pnl: float = 0.0
+    contributors: list[dict] = field(default_factory=list)
+    forward_curve: list[ForwardPoint] = field(default_factory=list)
+    book: list[BookLeg] = field(default_factory=list)
