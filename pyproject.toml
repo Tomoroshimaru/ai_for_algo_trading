@@ -1,0 +1,26 @@
+[project]
+name = "volatility-infra"
+version = "0.1.0"
+description = "IBKR-based volatility infrastructure platform (course project, strategy-agnostic)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ib_insync>=0.9.86",
+    "pandas>=2.2,<3.0",
+    "lxml>=5.2",
+    "requests>=2.32",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "pytest>=8.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

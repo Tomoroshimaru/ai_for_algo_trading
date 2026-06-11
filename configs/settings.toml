@@ -1,0 +1,25 @@
+# Non-secret, environment-shared configuration.
+# Secrets and machine-specific values are injected via environment variables
+# (see .env.example). NEVER put a real account id, password, or token here.
+
+[ibkr]
+host = "127.0.0.1"
+port = 4002          # IB Gateway paper = 4002 | live = 4001 | TWS paper = 7497 | TWS live = 7496
+client_id = 1        # per-service client id convention (Step 1c)
+account = ""         # leave empty: provided at runtime via IBKR_ACCOUNT env var
+market_data_type = 3 # 1=live, 2=frozen, 3=delayed, 4=delayed-frozen
+
+[environment]
+name = "dev"
+log_dir = "artifacts/logs"
+data_dir = "artifacts/data"
+
+[universe]
+source = "sp500_wikipedia"
+sp500_url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+
+[qc]
+clock_skew_tolerance_sec = 2.0
+
+[calendar]
+timezone = "America/New_York"
