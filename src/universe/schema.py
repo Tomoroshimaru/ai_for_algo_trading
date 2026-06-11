@@ -55,3 +55,16 @@ class OptionInstrument:
     multiplier: float
     trading_class: str
     con_id: int | None
+
+
+@dataclass(frozen=True)
+class OptionChain:
+    """Normalized standard option chain for one underlying (Step 2c/d)."""
+    underlying_symbol: str
+    underlying_con_id: int
+    currency: str
+    exchange: str                      # routing exchange (SMART)
+    trading_class: str
+    multiplier: float
+    expirations: tuple[dt.date, ...]   # normalized, sorted
+    strikes: tuple[float, ...]         # numeric, sorted

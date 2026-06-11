@@ -115,3 +115,172 @@ def get_underlying(session: IBSession, symbol: str, **kwargs: Any) -> Underlying
     """Convenience: return only the canonical underlying instrument."""
     inst, _raw = resolve_underlying(session, symbol, **kwargs)
     return inst
+
+
+# --------------------------------------------------------------------------- #
+# Option-chain discovery (Step 2c/d)                                          #
+# --------------------------------------------------------------------------- #
+import datetime as _dt  # noqa: E402
+
+from universe.schema import OptionChain, OptionInstrument, option_key  # noqa: E402
+
+
+def normalize_expiry(raw: str) -> _dt.date:
+    """Normalize an IBKR expiry string ('YYYYMMDD') into a date."""
+    s = str(raw).strip()
+    if len(s) != 8 or not s.isdigit():
+        raise DataQualityError(f"Unexpected expiry format: {raw!r}")
+    return _dt.date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+
+
+def select_standard_chain(
+    params: list[Any],
+    symbol: str,
+    currency: str,
+    *,
+    routing_exchange: str = "SMART",
+) -> OptionChain:
+    """Merge the broker's per-exchange chains into one standard chain.
+
+    The broker returns one entry per (exchange, tradingClass). We keep only the
+    standard class (tradingClass == symbol), take the UNION of expirations and
+    strikes across exchanges, and require a single consistent multiplier.
+    Fail-loud if no standard chain exists or the multiplier is inconsistent.
+    """
+    std = [p for p in params if getattr(p, "tradingClass", None) == symbol]
+    if not std:
+        raise InstrumentResolutionError(
+            symbol,
+            {"reason": "no standard option chain (tradingClass == symbol)",
+             "trading_classes": sorted({getattr(p, "tradingClass", "?") for p in params})},
+        )
+    multipliers = {float(p.multiplier) for p in std if getattr(p, "multiplier", None)}
+    if len(multipliers) != 1:
+        raise DataQualityError(
+            f"{symbol}: inconsistent option multipliers across chains: {multipliers}"
+        )
+    multiplier = multipliers.pop()
+    expirations = sorted({normalize_expiry(e) for p in std for e in p.expirations})
+    strikes = sorted({float(k) for p in std for k in p.strikes})
+    con_id = int(getattr(std[0], "underlyingConId", 0)) or 0
+
+    if not expirations or not strikes:
+        raise DataQualityError(f"{symbol}: empty option chain (expiries/strikes)")
+
+    return OptionChain(
+        underlying_symbol=symbol,
+        underlying_con_id=con_id,
+        currency=currency,
+        exchange=routing_exchange,
+        trading_class=symbol,
+        multiplier=multiplier,
+        expirations=tuple(expirations),
+        strikes=tuple(strikes),
+    )
+
+
+def get_option_chain(session: IBSession, underlying) -> OptionChain:
+    """Discover and normalize the standard option chain for an underlying."""
+    params = session.ib.reqSecDefOptParams(
+        underlying.symbol, "", underlying.sec_type, underlying.con_id
+    )
+    return select_standard_chain(params, underlying.symbol, underlying.currency)
+
+
+def _qc_option(opt: OptionInstrument) -> None:
+    problems = []
+    if not opt.currency:
+        problems.append("currency empty")
+    if opt.multiplier is None or opt.multiplier <= 0:
+        problems.append(f"impossible multiplier: {opt.multiplier!r}")
+    if opt.strike is None or opt.strike <= 0:
+        problems.append(f"impossible strike: {opt.strike!r}")
+    if opt.right not in ("C", "P"):
+        problems.append(f"invalid right: {opt.right!r}")
+    if not isinstance(opt.expiry, _dt.date):
+        problems.append("expiry not a date")
+    if problems:
+        raise DataQualityError(f"{opt.canonical_key}: " + "; ".join(problems))
+
+
+def materialize_options(
+    chain: OptionChain,
+    *,
+    session_date: _dt.date | None = None,
+    maturity_days: int | None = None,
+) -> list[OptionInstrument]:
+    """Expand a chain into canonical OptionInstrument rows (strike x right).
+
+    Optional maturity-window filter keeps only expiries within ``maturity_days``
+    of ``session_date`` (Step 2 output: filter by maturity window).
+    """
+    expiries = list(chain.expirations)
+    if maturity_days is not None:
+        ref = session_date or _dt.date.today()
+        horizon = ref + _dt.timedelta(days=maturity_days)
+        expiries = [e for e in expiries if ref <= e <= horizon]
+
+    out: list[OptionInstrument] = []
+    for expiry in expiries:
+        for strike in chain.strikes:
+            for right in ("C", "P"):
+                opt = OptionInstrument(
+                    canonical_key=option_key(
+                        chain.underlying_symbol, chain.currency, expiry, strike, right
+                    ),
+                    underlying_symbol=chain.underlying_symbol,
+                    sec_type="OPT",
+                    currency=chain.currency,
+                    exchange=chain.exchange,
+                    expiry=expiry,
+                    strike=strike,
+                    right=right,
+                    multiplier=chain.multiplier,
+                    trading_class=chain.trading_class,
+                    con_id=None,  # resolved lazily at subscription time (Step 3)
+                )
+                _qc_option(opt)
+                out.append(opt)
+    return out
+
+
+def load_active_universe(
+    session: IBSession,
+    symbols: list[str],
+    session_date: _dt.date,
+    *,
+    store: Any | None = None,
+    config_fp: str = "",
+    maturity_days: int | None = None,
+) -> dict[str, Any]:
+    """Resolve underlyings + option chains for a session and optionally persist.
+
+    Returns a summary; when ``store`` is provided, underlyings (JSON) and option
+    instruments (Parquet) are persisted under the session date so the same day
+    can be reconstructed (Step 2g).
+    """
+    underlyings: list[UnderlyingInstrument] = []
+    raws: list[dict[str, Any]] = []
+    options: list[OptionInstrument] = []
+
+    for sym in symbols:
+        inst, raw = resolve_underlying(session, sym)
+        underlyings.append(inst)
+        raws.append(raw)
+        chain = get_option_chain(session, inst)
+        options.extend(
+            materialize_options(
+                chain, session_date=session_date, maturity_days=maturity_days
+            )
+        )
+
+    if store is not None:
+        store.save_underlyings(session_date.isoformat(), underlyings, raws, config_fp)
+        store.save_options(session_date.isoformat(), options)
+
+    return {
+        "session_date": session_date.isoformat(),
+        "underlying_count": len(underlyings),
+        "option_count": len(options),
+        "underlyings": [u.canonical_key for u in underlyings],
+    }
