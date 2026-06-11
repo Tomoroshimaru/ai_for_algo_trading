@@ -40,3 +40,11 @@ uv run pytest -q
 | `ConnectionError ... after N attempts` | Gateway/TWS not running or API disabled | Start it, enable API, check port |
 | `clock_skew_sec` high / state DEGRADED | Host clock drift | Sync system time (NTP) |
 | `sample_market_price` is NaN | No live market-data entitlement | Use `IBKR_MARKET_DATA_TYPE=3` (delayed) |
+
+## Interactive demo (optional)
+A thin notebook (no logic; imports from `src/`) lets you test Steps 1-2 interactively:
+```bash
+uv run jupyter lab notebooks/demo_steps_1_2.ipynb
+```
+The first cell calls `ib_insync.util.startLoop()`, required because Jupyter runs
+its own asyncio loop. For rigorous, reproducible checks use `uv run pytest`.
