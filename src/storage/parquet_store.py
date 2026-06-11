@@ -68,17 +68,29 @@ class ParquetStore:
         ds = get_dataset(dataset_name)
         return self.root / ds.layer.value / dataset_name
 
-    def _partition_dir(self, dataset_name: str, trade_date: str, underlying: str) -> Path:
-        return (
+    def _partition_dir(self, dataset_name: str, trade_date: str, underlying: str,
+                       code_version: str | None = None) -> Path:
+        base = (
             self._dataset_root(dataset_name)
             / f"trade_date={trade_date}"
             / f"underlying={underlying}"
         )
+        # Versioned (replay/backfill) outputs live in an innermost code_version=
+        # subdir so a newer code version never silently overwrites older historical
+        # analytics (Step 13 task d). Live writes (code_version=None) keep the flat
+        # layout untouched and are never mixed with versioned reads.
+        return base / f"code_version={code_version}" if code_version else base
 
     def write_partition(
-        self, dataset_name: str, trade_date: str, underlying: str, df: pd.DataFrame
+        self, dataset_name: str, trade_date: str, underlying: str, df: pd.DataFrame,
+        *, code_version: str | None = None,
     ) -> Path:
-        """Validate then (over)write exactly one partition; other partitions untouched."""
+        """Validate then (over)write exactly one partition; other partitions untouched.
+
+        When `code_version` is set the partition is isolated under a code_version=
+        subdir, so re-running historical analytics with a new code version archives
+        a fresh copy instead of overwriting the prior one.
+        """
         if df.empty:
             raise SchemaValidationError(f"[{dataset_name}] refusing to write empty frame")
         df = df.copy()
@@ -86,7 +98,7 @@ class ParquetStore:
         df["underlying"] = underlying
         df["schema_version"] = SCHEMA_VERSION
         table = validate(dataset_name, df)
-        part = self._partition_dir(dataset_name, trade_date, underlying)
+        part = self._partition_dir(dataset_name, trade_date, underlying, code_version)
         if part.exists():
             shutil.rmtree(part)        # idempotent recompute of this partition only
         part.mkdir(parents=True, exist_ok=True)
@@ -100,8 +112,14 @@ class ParquetStore:
         *,
         trade_date: str | None = None,
         underlying: str | None = None,
+        code_version: str | None = None,
     ) -> pd.DataFrame:
-        """Read a dataset, optionally filtered by partition keys (efficient daily query)."""
+        """Read a dataset, optionally filtered by partition keys (efficient daily query).
+
+        `code_version=None` reads ONLY live (flat-layout) partitions and never
+        picks up versioned replay archives. Pass an explicit `code_version` to read
+        a specific historical archive.
+        """
         root = self._dataset_root(dataset_name)
         if not root.exists():
             return get_dataset(dataset_name).schema.empty_table().to_pandas()
@@ -113,6 +131,11 @@ class ParquetStore:
         if not base.exists():
             return get_dataset(dataset_name).schema.empty_table().to_pandas()
         files = sorted(base.rglob("*.parquet"))
+        if code_version is None:
+            files = [f for f in files if "code_version=" not in str(f)]
+        else:
+            tag = f"code_version={code_version}"
+            files = [f for f in files if tag in f.parts]
         if not files:
             return get_dataset(dataset_name).schema.empty_table().to_pandas()
         return pd.concat((pd.read_parquet(f) for f in files), ignore_index=True)

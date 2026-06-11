@@ -223,3 +223,27 @@ loses money on long gamma in BOTH paths); worst-case PnL == sum of line
 contributors; underlying attribution sums to portfolio. End-to-end on real spot
 728.87: worst case spot_-0.20 = -187k, explained by short put -100k + long call
 -72k + stock -15k.
+
+## Historical reconstruction & replay (Step 13)
+Replay reconstructs historical analytics from stored snapshots using the SAME
+code path as live - there is no 'historical only' fork (junior note: dual paths
+drift).
+- **Shared pipeline** `src/pipeline/daily.py::run_day`: snapshot -> forwards ->
+  IV -> surface -> (risk if positions). Live and replay call this identically;
+  they differ only in input source and output location.
+- **Replay driver** `src/replay/backfill.py`: `replay_day` / `replay_range`
+  batch over a date range (task b); `detect_partitions` flags missing inputs
+  (task c); outputs are archived in versioned partitions via the new
+  `code_version=` partition level so a newer code version never silently
+  overwrites older historical analytics (task d).
+- **Versioned partitions**: `ParquetStore.write_partition(..., code_version=V)`
+  writes under `.../underlying=U/code_version=V/`. Live reads (`code_version=None`)
+  ignore versioned subtrees entirely; live layout is unchanged.
+- **QA & alignment**: `replay_range` emits qc_results rows (partition-presence +
+  analytics-coverage per date). `compare_replay_vs_live` joins live vs replay and
+  reports max abs diff per column (task e).
+
+Verified end-to-end: a 21-business-day historical month reconstructed (20 OK, 1
+MISSING gap flagged not masked); replay-vs-live forward max_abs_diff = 0.0 on
+overlapping dates with the same code version; versioned archive isolated from the
+live tree. Missing data is surfaced, never interpolated silently.
