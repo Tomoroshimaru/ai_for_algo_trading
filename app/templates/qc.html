@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}QC / Triage{% endblock %}
+{% block content %}
+<h1>QC / Triage <span class="muted small">(real — qc_results, Step 14)</span></h1>
+<p class="prov">source: {{ rep.source }}</p>
+{% if rep.trade_date %}
+<div class="grid4">
+  <div class="card kpi"><span class="ok">{{ rep.usable }}</span><label>USABLE</label></div>
+  <div class="card kpi"><span style="color:#d29922">{{ rep.caution }}</span><label>CAUTION</label></div>
+  <div class="card kpi"><span class="bad">{{ rep.reject }}</span><label>REJECT</label></div>
+  <div class="card kpi"><span>{{ rep.failures|length }}</span><label>failing checks</label></div>
+</div>
+
+<div class="plot">{{ chart|safe }}</div>
+
+<h2>Triage queue <span class="muted small">(non-USABLE checks, worst first)</span></h2>
+<table class="data">
+  <thead><tr><th>status</th><th>check</th><th>target</th><th>detail</th></tr></thead>
+  <tbody>
+  {% for f in rep.failures %}
+    <tr>
+      <td class="{{ 'bad' if f.status=='REJECT' else '' }}" style="{{ 'color:#d29922' if f.status=='CAUTION' else '' }}">{{ f.status }}</td>
+      <td>{{ f.check_name }}</td><td class="small">{{ f.target }}</td><td class="small">{{ f.detail }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if rep.parity_outliers %}
+<h2>Put-call-parity outliers <span class="muted small">(real forward_diagnostics, Step 6)</span></h2>
+<table class="data">
+  <thead><tr><th>expiry</th><th>strike</th><th>parity forward</th><th>residual</th><th>label</th></tr></thead>
+  <tbody>
+  {% for o in rep.parity_outliers %}
+    <tr><td>{{ o.expiry }}</td><td>{{ "%g"|format(o.strike) }}</td><td>{{ "%.4f"|format(o.parity_forward) }}</td>
+    <td class="bad">{{ "%.4f"|format(o.residual) }}</td><td>{{ o.quality_label }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% else %}
+<p class="prov">No qc_results on disk yet — run the Step 14 QC stage to populate this view.</p>
+{% endif %}
+{% endblock %}

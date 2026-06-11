@@ -195,3 +195,36 @@ class RiskReport:
     net_theta: float = 0.0
     gross_delta: float = 0.0
     net_value: float = 0.0
+
+
+@dataclass(frozen=True)
+class QCCheck:
+    """One QC check outcome (roadmap Step 14, read from real qc_results)."""
+    check_ts: str | None
+    check_name: str
+    target: str | None
+    status: str           # USABLE | CAUTION | REJECT
+    detail: str
+
+
+@dataclass(frozen=True)
+class ParityOutlier:
+    """Put-call-parity diagnostic flagged non-inlier (real forward_diagnostics)."""
+    expiry: str
+    strike: float
+    parity_forward: float
+    residual: float
+    quality_label: str
+
+
+@dataclass(frozen=True)
+class QCReport:
+    """Triage view over the real QC + parity diagnostics (Step 14)."""
+    source: str
+    trade_date: str | None
+    usable: int = 0
+    caution: int = 0
+    reject: int = 0
+    by_check: list[dict] = field(default_factory=list)     # {check, caution, reject}
+    failures: list[QCCheck] = field(default_factory=list)   # non-USABLE, non-FINAL
+    parity_outliers: list[ParityOutlier] = field(default_factory=list)

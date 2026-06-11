@@ -23,6 +23,7 @@ from app.data.providers import AppProvider
 from app.data.observability import ObservabilityProvider
 from app.data.scenario import ScenarioProvider
 from app.data.risk import RiskProvider
+from app.data.qc import QCProvider
 
 APP_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Volatility Infra — Operator Console")
@@ -32,6 +33,7 @@ provider = AppProvider()
 obs = ObservabilityProvider()
 scen = ScenarioProvider()
 risk_provider = RiskProvider()
+qc_provider = QCProvider()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -211,3 +213,32 @@ def risk_page(request: Request, underlying: str | None = None):
 @app.get("/api/risk/{underlying}")
 def api_risk(underlying: str):
     return JSONResponse(asdict(risk_provider.get_risk(underlying)))
+
+
+@app.get("/qc", response_class=HTMLResponse)
+def qc_page(request: Request):
+    rep = qc_provider.get_report()
+    return templates.TemplateResponse(request, "qc.html", {
+        "rep": rep, "chart": _qc_chart_div(rep),
+    })
+
+
+@app.get("/api/qc")
+def api_qc():
+    return JSONResponse(asdict(qc_provider.get_report()))
+
+
+def _qc_chart_div(rep) -> str:
+    if not rep.by_check:
+        return "<p class=\'prov\'>No failing checks — all instruments USABLE.</p>"
+    names = [d["check"] for d in rep.by_check]
+    fig = go.Figure(data=[
+        go.Bar(name="REJECT", x=names, y=[d["reject"] for d in rep.by_check], marker_color="#f85149"),
+        go.Bar(name="CAUTION", x=names, y=[d["caution"] for d in rep.by_check], marker_color="#d29922"),
+    ])
+    fig.update_layout(
+        barmode="stack", template="plotly_dark", height=340, paper_bgcolor="#0d1117",
+        margin=dict(l=10, r=10, t=40, b=10), title="Failing checks by rule",
+        xaxis_title="check", yaxis_title="count",
+    )
+    return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)
