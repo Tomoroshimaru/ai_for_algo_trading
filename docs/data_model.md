@@ -186,6 +186,8 @@ starts at the line level (junior note).
   (vega/100)*mult*qty (per +1 vol pt); dollar_theta = (theta/365)*mult*qty
   (per day). mult=100 options / 1 stock.
 - **Aggregation**: by portfolio (ALL), underlying, expiry (maturity), instrument.
+  Each row carries n_lines (priced), n_total (all) and coverage=n_lines/n_total
+  so a partial book (no_spot/no_vol lines excluded) cannot be misread as complete.
 - **Reconciliation**: `reconcile_greeks` compares computed vs broker Greeks;
   abs_diff > threshold -> breach=True (surfaced automatically).
 - **Storage**: line-level `greeks` (enriched), `risk_aggregates`, `risk_recon`.

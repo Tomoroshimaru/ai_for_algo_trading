@@ -173,6 +173,8 @@ _RISK_AGGREGATES = _with_common([
     pa.field("group_key", pa.string(), nullable=False),    # portfolio|underlying|expiry|instrument
     pa.field("group_value", pa.string(), nullable=False),
     pa.field("n_lines", pa.int32()),
+    pa.field("n_total", pa.int32()),
+    pa.field("coverage", pa.float64()),
     pa.field("position_value", pa.float64()),
     pa.field("delta", pa.float64()), pa.field("gamma", pa.float64()),
     pa.field("vega", pa.float64()), pa.field("theta", pa.float64()),

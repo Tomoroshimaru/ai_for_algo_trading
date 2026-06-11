@@ -129,29 +129,38 @@ _AGG_COLS = ["position_value", *SENSITIVITIES[:5], *DOLLAR_SENSITIVITIES]
 
 def aggregate_risk(line: pd.DataFrame, source_session_id: str,
                    snapshot_ts) -> pd.DataFrame:
-    """Aggregate by portfolio, underlying, expiry (maturity), and instrument."""
-    priced = line[line["status"].isin(["priced", "linear"])].copy()
-    model = priced["model"].iloc[0] if len(priced) else "n/a"
+    """Aggregate by portfolio, underlying, expiry (maturity), and instrument.
+
+    Each row carries n_lines (priced lines contributing to the sums), n_total
+    (all lines in the group, including unpriceable ones) and coverage =
+    n_lines/n_total. This makes a partial book impossible to misread as a
+    complete one - critical when no_spot/no_vol lines are excluded from sums.
+    """
+    priced_mask = line["status"].isin(["priced", "linear"])
+    model = line.loc[priced_mask, "model"].iloc[0] if priced_mask.any() else "n/a"
     out: list[dict] = []
 
-    def _emit(group_key, group_value, g, und):
+    def _emit(group_key, group_value, g_all, und):
+        g = g_all[g_all["status"].isin(["priced", "linear"])]
+        n_total = int(len(g_all))
         row = {"snapshot_ts": snapshot_ts, "underlying": und,
                "group_key": group_key, "group_value": str(group_value),
-               "n_lines": int(len(g)), "model": model,
-               "source_session_id": source_session_id}
+               "n_lines": int(len(g)), "n_total": n_total,
+               "coverage": (len(g) / n_total) if n_total else 0.0,
+               "model": model, "source_session_id": source_session_id}
         for c in _AGG_COLS:
             row[c] = float(g[c].sum())
         out.append(row)
 
-    _emit("portfolio", "ALL", priced, "ALL")
-    for und, g in priced.groupby("underlying"):
+    _emit("portfolio", "ALL", line, "ALL")
+    for und, g in line.groupby("underlying"):
         _emit("underlying", und, g, und)
-    for (und, exp), g in priced[priced["expiry"].notna()].groupby(["underlying", "expiry"]):
+    for (und, exp), g in line[line["expiry"].notna()].groupby(["underlying", "expiry"]):
         _emit("expiry", exp, g, und)
-    for (und, key), g in priced.groupby(["underlying", "instrument_key"]):
+    for (und, key), g in line.groupby(["underlying", "instrument_key"]):
         _emit("instrument", key, g, und)
     cols = ["snapshot_ts", "underlying", "group_key", "group_value", "n_lines",
-            *_AGG_COLS, "model", "source_session_id"]
+            "n_total", "coverage", *_AGG_COLS, "model", "source_session_id"]
     return pd.DataFrame(out, columns=cols).sort_values(
         ["group_key", "underlying", "group_value"]).reset_index(drop=True)
 

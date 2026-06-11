@@ -78,8 +78,20 @@ def test_missing_vol_flagged_not_priced():
     line, agg, _ = compute_risk(_positions(10), _market_state(100),
                                 _iv_points(0.2).iloc[:0], "s1", TS)
     assert line.iloc[0]["status"] == "no_vol" and pd.isna(line.iloc[0]["price"])
-    # excluded from aggregate
-    assert agg[agg["group_key"] == "portfolio"].iloc[0]["n_lines"] == 0
+    # excluded from aggregate, but coverage exposes the partial book
+    port = agg[agg["group_key"] == "portfolio"].iloc[0]
+    assert port["n_lines"] == 0 and port["n_total"] == 1 and port["coverage"] == 0.0
+
+
+def test_coverage_ratio_reported():
+    pos = pd.concat([_positions(10),
+                     pd.DataFrame([{"as_of_ts": TS, "account": "U1", "underlying": "SPY",
+                                    "instrument_key": "OPT:SPY:20261218:200:C",
+                                    "quantity": 5.0, "avg_cost": 1.0}])],
+                    ignore_index=True)  # 2nd option has no vol -> unpriceable
+    _, agg, _ = compute_risk(pos, _market_state(100), _iv_points(0.2), "s1", TS)
+    port = agg[agg["group_key"] == "portfolio"].iloc[0]
+    assert port["n_lines"] == 1 and port["n_total"] == 2 and port["coverage"] == 0.5
 
 
 def test_missing_spot_flagged():
