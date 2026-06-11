@@ -147,3 +147,26 @@ points are never discarded - operators must compare fit vs calibration inputs).
   `iv_points` remain available for audit.
 - **Operator plotting**: `slice_comparison` returns tidy raw-vs-fit tables;
   `render_slice_png` renders a raw-points vs fitted-slice chart (matplotlib).
+
+## Pricing engine (Step 10)
+`src/pricing/engine.py` is the SINGLE module allowed to map a state vector
+(spot, ttm, vol, rate, carry) to price + Greeks (junior note: no pricing logic
+in dataframes/notebooks).
+- **Typed API**: `price(PricingRequest) -> PricingResult`. Request validates
+  right/style/non-negativity; result carries price, delta, gamma, vega, theta,
+  rho, vanna, volga, method, n_steps + unit helpers (vega_per_pct,
+  theta_per_day, rho_per_bp).
+- **European**: closed-form Black-Scholes-Merton with carry; analytic Greeks.
+  Consistent with the inversion engine - equals `iv.inversion.black76_price`
+  with F=S*exp((r-q)T), DF=exp(-rT) (verified to 1e-10), so solved IVs reprice.
+- **American**: Cox-Ross-Rubinstein binomial tree (single-name, carry q),
+  Greeks via central finite differences with documented bumps (spot 1e-4 rel,
+  vol/rate 1e-4 abs, time 1e-4 abs).
+- **Vectorized**: `european_price_array` prices whole strike/vol arrays.
+- **Unit conventions** (see module docstring): vol annualized decimal, T years,
+  r/q continuous, theta per calendar year, vega per 1.00 vol, rho per 1.00 rate.
+
+Verified: Hull reference call = 10.4506; put-call parity to 1e-9; CRR American
+call (no div) converges to European (~1/N); American put shows early-exercise
+premium; sign conventions and T->0 / sigma->0 limits covered; 512-step tree in
+~3 ms; 10k vectorized prices < 2 s.
