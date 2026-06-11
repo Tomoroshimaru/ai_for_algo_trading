@@ -312,6 +312,42 @@ _QC_ANOMALIES = _with_common([
     pa.field("source_session_id", pa.string()),
 ])
 
+_JOB_RUNS = _with_common([
+    pa.field("run_id", pa.string(), nullable=False),
+    pa.field("job_name", pa.string(), nullable=False),
+    pa.field("run_date", pa.string(), nullable=False),
+    pa.field("attempt", pa.int32(), nullable=False),
+    pa.field("status", pa.string(), nullable=False),     # RUNNING|SUCCEEDED|FAILED|SKIPPED
+    pa.field("started_ts", _TS, nullable=False),
+    pa.field("ended_ts", _TS),
+    pa.field("duration_sec", pa.float64()),
+    pa.field("correlation_id", pa.string(), nullable=False),
+    pa.field("rows_out", pa.int32()),
+    pa.field("error", pa.string()),
+    pa.field("detail", pa.string()),
+])
+
+_OPS_METRICS = _with_common([
+    pa.field("metric_ts", _TS, nullable=False),
+    pa.field("run_date", pa.string(), nullable=False),
+    pa.field("scope", pa.string(), nullable=False),       # system | <job> | <underlying>
+    pa.field("metric_name", pa.string(), nullable=False),
+    pa.field("value", pa.float64()),
+    pa.field("correlation_id", pa.string()),
+    pa.field("detail", pa.string()),
+])
+
+_ALERTS = _with_common([
+    pa.field("alert_ts", _TS, nullable=False),
+    pa.field("run_date", pa.string(), nullable=False),
+    pa.field("alert_name", pa.string(), nullable=False),
+    pa.field("severity", pa.string(), nullable=False),    # INFO | WARN | CRITICAL
+    pa.field("route", pa.string(), nullable=False),       # page | slack | email
+    pa.field("status", pa.string(), nullable=False),      # FIRING | OK
+    pa.field("detail", pa.string()),
+    pa.field("correlation_id", pa.string()),
+])
+
 DATASETS: dict[str, Dataset] = {
     "raw_events": Dataset("raw_events", DataLayer.RAW, _RAW_EVENTS),
     "market_state": Dataset("market_state", DataLayer.NORMALIZED, _MARKET_STATE),
@@ -332,6 +368,9 @@ DATASETS: dict[str, Dataset] = {
     "qc_results": Dataset("qc_results", DataLayer.DERIVED, _QC_RESULTS),
     "validation_results": Dataset("validation_results", DataLayer.DERIVED, _VALIDATION_RESULTS),
     "qc_anomalies": Dataset("qc_anomalies", DataLayer.DERIVED, _QC_ANOMALIES),
+    "job_runs": Dataset("job_runs", DataLayer.DERIVED, _JOB_RUNS),
+    "ops_metrics": Dataset("ops_metrics", DataLayer.DERIVED, _OPS_METRICS),
+    "alerts": Dataset("alerts", DataLayer.DERIVED, _ALERTS),
 }
 
 

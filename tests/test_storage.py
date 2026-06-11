@@ -26,6 +26,7 @@ def test_all_required_datasets_exist():
         "forward_diagnostics", "surface_grid", "risk_aggregates", "risk_recon",
         "scenario_defs", "scenario_results", "scenario_summary",
         "validation_results", "qc_anomalies",
+        "job_runs", "ops_metrics", "alerts",
     }
     assert required == set(DATASETS)
 

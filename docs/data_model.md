@@ -269,3 +269,28 @@ reason_code and human context - no generic red banners (junior note).
 
 Reason codes: COVERAGE_LOW, STALE_HIGH, FWD_RESIDUAL_HIGH, FWD_LOW_QUALITY,
 SOLVER_NONCONV, SURFACE_ROUGH, BUTTERFLY_ARB, CALENDAR_ARB, RECON_BREACH.
+
+## Orchestration, logging & observability (Step 15)
+Makes the build operable: schedules, retries, metrics, alerting. "A correct
+algorithm that cannot be monitored is not production-ready."
+- **`src/orchestration/runner.py`** - `Job` (named callable) + `JobRunner` give
+  every job uniform retries, a correlation_id, and a durable `job_runs` ledger.
+  Jobs (task a): universe_refresh, live_collection, incremental_analytics,
+  eod_reconciliation, replay, qc.
+  - **Idempotent restart (task e)**: before executing, the runner checks the
+    ledger for a prior SUCCEEDED run of (job, run_date); if found and not
+    `force`, it SKIPS. With ParquetStore single-partition overwrite, restarting
+    never duplicates or corrupts outputs (even a forced rerun overwrites).
+- **`logging_ctx.py`** - structured JSON logs; `correlation_id_from_session`
+  binds a collector session to all downstream analytics jobs (task b).
+- **`metrics.py`** - few, well-labeled metrics (task c / junior note):
+  quote_count, stale_ratio, forward_failures, solver_failures, surfaces_built,
+  scenario_runtime_sec -> `ops_metrics`.
+- **`alerts.py`** - four alerts (task d) with severity->route (CRITICAL=page,
+  WARN=slack, INFO=email): collector_death, missing_partitions,
+  elevated_failure_rate, qc_fail (consumes Step 14 reason codes; completes Step
+  14 task e "who gets notified"). -> `alerts`.
+- **`health.py`** - `health_summary` answers the four operator questions at a
+  glance; `last_healthy_runs` + `backlog` give the last good run and outstanding
+  work instantly (task f / acceptance).
+- **Datasets**: `job_runs` (ledger), `ops_metrics`, `alerts`.
