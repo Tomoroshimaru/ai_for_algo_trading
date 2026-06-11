@@ -101,3 +101,60 @@ class ObservabilitySnapshot:
     total_errors: int = 0
     distinct_instruments: int = 0
     stale_quote_tolerance_sec: float = 0.0
+
+
+@dataclass(frozen=True)
+class ForwardPoint:
+    """One maturity of the real put-call-parity forward curve (Step 6)."""
+    expiry: str
+    forward: float
+    implied_carry: float | None
+    method: str
+    n_pairs: int | None
+    is_reliable: bool
+    tenor_years: float
+
+
+@dataclass(frozen=True)
+class MarketBase:
+    """Real base market state for an underlying (Step 5)."""
+    source: str
+    underlying: str
+    spot: float | None
+    reference_type: str | None
+    is_stale: bool
+    snapshot_ts: str | None
+
+
+@dataclass(frozen=True)
+class BookLeg:
+    label: str
+    expiry: str
+    strike: float
+    right: str            # C | P
+    qty: float            # signed (negative = short)
+    multiplier: float
+    vol: float            # synthetic ATM vol used
+    base_price: float
+
+
+@dataclass(frozen=True)
+class ScenarioResult:
+    """Spot x vol stress grid with worst-case + contributors (Step 12).
+
+    Base spot and forward curve are REAL (Steps 5-6); the illustrative book,
+    implied vols and Black-76 reval are SYNTHETIC until Steps 8/10/11 land.
+    """
+    source: str
+    underlying: str
+    spot: float
+    base_value: float
+    spot_shocks: list[float]
+    vol_shocks: list[float]
+    pnl_matrix: list[list[float]]          # rows=vol_shocks, cols=spot_shocks
+    worst_spot_shock: float
+    worst_vol_shock: float
+    worst_pnl: float
+    contributors: list[dict] = field(default_factory=list)
+    book: list[BookLeg] = field(default_factory=list)
+    forward_curve: list[ForwardPoint] = field(default_factory=list)

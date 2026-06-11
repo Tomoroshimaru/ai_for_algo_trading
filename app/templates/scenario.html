@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Scenario{% endblock %}
+{% block content %}
+<h1>Scenario / Stress <span class="muted small">(Step 12)</span></h1>
+<form method="get" class="controls">
+  <label>Underlying
+    <select name="underlying" onchange="this.form.submit()">
+      {% for s in symbols %}<option value="{{ s }}" {{ 'selected' if s==sym }}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+</form>
+<p class="prov">{{ res.source }}</p>
+
+<div class="grid4">
+  <div class="card kpi"><span>{{ "%.2f"|format(res.spot) }}</span><label>spot (real)</label></div>
+  <div class="card kpi"><span>{{ "{:,.0f}".format(res.base_value) }}</span><label>base book value</label></div>
+  <div class="card kpi"><span class="bad">{{ "{:,.0f}".format(res.worst_pnl) }}</span><label>worst-case PnL</label></div>
+  <div class="card kpi"><span>{{ "{:+.0%}".format(res.worst_spot_shock) }} / {{ "%+.2f"|format(res.worst_vol_shock) }}</span><label>worst spot / vol</label></div>
+</div>
+
+<div class="plot">{{ heatmap|safe }}</div>
+
+<div class="cols">
+  <div>
+    <h2>Forward curve <span class="muted small">(real, Step 6)</span></h2>
+    <table class="data">
+      <thead><tr><th>expiry</th><th>forward</th><th>carry</th><th>method</th><th>pairs</th><th>reliable</th></tr></thead>
+      <tbody>
+      {% for fp in res.forward_curve %}
+        <tr><td>{{ fp.expiry }}</td><td>{{ "%.3f"|format(fp.forward) }}</td>
+        <td>{{ "%.4f"|format(fp.implied_carry) if fp.implied_carry is not none else '—' }}</td>
+        <td class="small">{{ fp.method }}</td><td>{{ fp.n_pairs }}</td>
+        <td class="{{ 'ok' if fp.is_reliable else 'bad' }}">{{ 'yes' if fp.is_reliable else 'no' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h2>Worst-case contributors</h2>
+    <table class="data">
+      <thead><tr><th>leg</th><th>PnL</th></tr></thead>
+      <tbody>
+      {% for c in res.contributors %}
+        <tr><td>{{ c.leg }}</td><td class="{{ 'bad' if c.pnl < 0 else 'ok' }}">{{ "{:,.0f}".format(c.pnl) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h2>Illustrative book <span class="muted small">(synthetic — short ATM straddle per reliable maturity)</span></h2>
+<table class="data">
+  <thead><tr><th>leg</th><th>expiry</th><th>strike</th><th>right</th><th>qty</th><th>mult</th><th>vol</th><th>base price</th></tr></thead>
+  <tbody>
+  {% for leg in res.book %}
+    <tr><td>{{ leg.label }}</td><td>{{ leg.expiry }}</td><td>{{ "%g"|format(leg.strike) }}</td>
+    <td>{{ leg.right }}</td><td>{{ "%g"|format(leg.qty) }}</td><td>{{ "%g"|format(leg.multiplier) }}</td>
+    <td>{{ "%.4f"|format(leg.vol) }}</td><td>{{ "%.4f"|format(leg.base_price) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

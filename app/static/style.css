@@ -22,3 +22,6 @@ footer{color:var(--mut);font-size:12px;text-align:center;padding:18px;border-top
 .kpi span.bad{color:var(--bad)}.kpi span.ok{color:var(--ok)}
 .kpi label{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 td.bad{color:var(--bad);font-weight:700}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:12px 0}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}

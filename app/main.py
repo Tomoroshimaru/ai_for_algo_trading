@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.data.providers import AppProvider
 from app.data.observability import ObservabilityProvider
+from app.data.scenario import ScenarioProvider
 
 APP_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Volatility Infra — Operator Console")
@@ -28,6 +29,7 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 provider = AppProvider()
 obs = ObservabilityProvider()
+scen = ScenarioProvider()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -156,3 +158,39 @@ def _surface3d_div(underlying: str, expiries: list[str]):
                    zaxis_title="implied vol"),
     )
     return pio.to_html(fig, include_plotlyjs="cdn", full_html=False), len(slices), slices[0].source
+
+
+@app.get("/scenario", response_class=HTMLResponse)
+def scenario_page(request: Request, underlying: str | None = None):
+    universe = provider.get_universe_summary()
+    symbols = [u["symbol"] for u in universe.underlyings]
+    sym = underlying or (symbols[0] if symbols else "SPY")
+    res = scen.run_scenario(sym)
+    heatmap = _scenario_heatmap_div(res)
+    return templates.TemplateResponse(request, "scenario.html", {
+        "symbols": symbols, "sym": sym, "res": res, "heatmap": heatmap,
+    })
+
+
+@app.get("/api/scenario/{underlying}")
+def api_scenario(underlying: str):
+    return JSONResponse(asdict(scen.run_scenario(underlying)))
+
+
+def _scenario_heatmap_div(res) -> str:
+    if not res.book:
+        return "<p class=\'prov\'>No reliable forward maturities — cannot build a book yet.</p>"
+    xs = [f"{s:+.0%}" for s in res.spot_shocks]
+    ys = [f"{v:+.2f}" for v in res.vol_shocks]
+    fig = go.Figure(data=[go.Heatmap(
+        z=res.pnl_matrix, x=xs, y=ys, colorscale="RdYlGn", zmid=0,
+        colorbar=dict(title="PnL"),
+        hovertemplate="spot %{x}, vol %{y}<br>PnL %{z:,.0f}<extra></extra>",
+    )])
+    fig.update_layout(
+        template="plotly_dark", height=420, paper_bgcolor="#0d1117",
+        margin=dict(l=10, r=10, t=40, b=10),
+        title=f"{res.underlying} stress grid — book PnL (worst {res.worst_pnl:,.0f})",
+        xaxis_title="spot shock", yaxis_title="vol shock (abs pts)",
+    )
+    return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)
