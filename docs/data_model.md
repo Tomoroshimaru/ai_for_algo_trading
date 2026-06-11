@@ -197,3 +197,29 @@ sum == sum of lines; deterministic aggregates on identical inputs; recon breach
 / no-breach both fire; missing spot/vol flagged. End-to-end on real spot 728.87:
 3-line book -> $delta 1.12M, $gamma 23k, $vega 2169/pt, $theta -103/day; broker
 delta discrepancy 0.125 surfaced as breach.
+
+## Scenario engine & margin-style diagnostics (Step 12)
+`src/scenario/engine.py` approximates worst-case losses under spot / vol / time
+shocks for generic risk control, capacity planning and margin diagnostics. No
+strategy logic.
+- **Versioned grid** (`build_grid(version)`): spot ladder, vol shifts, time
+  roll-downs, plus margin-style joint crash/rally. Unknown versions are rejected;
+  bump the version rather than mutate. The exact grid is persisted to
+  `scenario_defs` (lineage, queryable alongside results - junior note).
+- **Full reprice = reference** (`pnl_full`, Step 10 engine). A Greeks Taylor
+  approximation (`pnl_greeks`) is provided for speed:
+  dPnL ~ delta*dS + 0.5*gamma*dS^2 + vega*dVol + theta*(+roll/365), x mult x qty.
+  theta is dPrice/d(calendar time) -> the time term uses +roll/365 (calendar
+  advance), not the change in time-to-maturity.
+- **Outputs**: `scenario_results` (line-level base/scen value + both PnLs),
+  `scenario_summary` (per-scenario portfolio & underlying totals, approx_error,
+  is_worst_case). `top_contributors()` explains a scenario line-by-line.
+- **Agreement**: full vs Greeks agree within ~0.1% for small shocks (5% spot)
+  and diverge for large ones (~5% at -20% spot) - full stays the reference.
+
+Verified: base scenario PnL==0; exact regeneration on (positions, snapshot,
+version); full/Greeks agree small / diverge large; theta sign correct (time roll
+loses money on long gamma in BOTH paths); worst-case PnL == sum of line
+contributors; underlying attribution sums to portfolio. End-to-end on real spot
+728.87: worst case spot_-0.20 = -187k, explained by short put -100k + long call
+-72k + stock -15k.

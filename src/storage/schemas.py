@@ -242,6 +242,47 @@ _SURFACE_GRID = _with_common([
     pa.field("source_session_id", pa.string()),
 ])
 
+_SCENARIO_DEFS = _with_common([
+    pa.field("version", pa.string(), nullable=False),
+    pa.field("scenario_id", pa.string(), nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("family", pa.string(), nullable=False),       # spot|vol|time|joint
+    pa.field("spot_shock", pa.float64()),                  # relative, -0.1 = -10%
+    pa.field("vol_shock", pa.float64()),                   # absolute vol points
+    pa.field("time_roll_days", pa.float64()),              # calendar days rolled fwd
+    pa.field("label", pa.string()),
+])
+
+_SCENARIO_RESULTS = _with_common([
+    pa.field("snapshot_ts", _TS, nullable=False),
+    pa.field("version", pa.string(), nullable=False),
+    pa.field("scenario_id", pa.string(), nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("instrument_key", pa.string(), nullable=False),
+    pa.field("family", pa.string(), nullable=False),
+    pa.field("base_value", pa.float64()),
+    pa.field("scen_value", pa.float64()),
+    pa.field("pnl_full", pa.float64()),
+    pa.field("pnl_greeks", pa.float64()),
+    pa.field("source_session_id", pa.string()),
+])
+
+_SCENARIO_SUMMARY = _with_common([
+    pa.field("snapshot_ts", _TS, nullable=False),
+    pa.field("version", pa.string(), nullable=False),
+    pa.field("scenario_id", pa.string(), nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("family", pa.string(), nullable=False),
+    pa.field("group_key", pa.string(), nullable=False),    # portfolio|underlying
+    pa.field("group_value", pa.string(), nullable=False),
+    pa.field("n_lines", pa.int32()),
+    pa.field("pnl_full", pa.float64()),
+    pa.field("pnl_greeks", pa.float64()),
+    pa.field("approx_error", pa.float64()),
+    pa.field("is_worst_case", pa.bool_()),
+    pa.field("source_session_id", pa.string()),
+])
+
 DATASETS: dict[str, Dataset] = {
     "raw_events": Dataset("raw_events", DataLayer.RAW, _RAW_EVENTS),
     "market_state": Dataset("market_state", DataLayer.NORMALIZED, _MARKET_STATE),
@@ -255,6 +296,9 @@ DATASETS: dict[str, Dataset] = {
     "risk_aggregates": Dataset("risk_aggregates", DataLayer.DERIVED, _RISK_AGGREGATES),
     "risk_recon": Dataset("risk_recon", DataLayer.DERIVED, _RISK_RECON),
     "scenarios": Dataset("scenarios", DataLayer.DERIVED, _SCENARIOS),
+    "scenario_defs": Dataset("scenario_defs", DataLayer.DERIVED, _SCENARIO_DEFS),
+    "scenario_results": Dataset("scenario_results", DataLayer.DERIVED, _SCENARIO_RESULTS),
+    "scenario_summary": Dataset("scenario_summary", DataLayer.DERIVED, _SCENARIO_SUMMARY),
     "positions": Dataset("positions", DataLayer.DERIVED, _POSITIONS),
     "qc_results": Dataset("qc_results", DataLayer.DERIVED, _QC_RESULTS),
 }
