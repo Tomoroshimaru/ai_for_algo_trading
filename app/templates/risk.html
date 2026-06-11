@@ -8,7 +8,7 @@
       {% for s in symbols %}<option value="{{ s }}" {{ 'selected' if s==sym }}>{{ s }}</option>{% endfor %}
     </select>
   </label>
-  <a class="json" href="/api/risk/{{ sym }}" target="_blank">view JSON →</a>
+  <a class="json" href="/api/risk/{{ sym }}" target="_blank" rel="noopener noreferrer">view JSON →</a>
 </form>
 <p class="prov">{{ r.source }}</p>
 

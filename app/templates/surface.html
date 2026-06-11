@@ -13,7 +13,7 @@
       {% for e in expiries %}<option value="{{ e }}" {{ 'selected' if e==exp }}>{{ e }}</option>{% endfor %}
     </select>
   </label>
-  <a class="json" href="/api/surfaces/{{ sym }}/{{ exp }}" target="_blank">view JSON grid →</a>
+  <a class="json" href="/api/surfaces/{{ sym }}/{{ exp }}" target="_blank" rel="noopener noreferrer">view JSON grid →</a>
 </form>
 <p class="prov">{{ slice.source }}</p>
 <div class="plot">{{ plot|safe }}</div>
