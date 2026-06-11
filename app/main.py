@@ -38,10 +38,7 @@ qc_provider = QCProvider()
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {
-        "health": provider.get_health(),
-        "universe": provider.get_universe_summary(),
-    })
+    return templates.TemplateResponse(request, "index.html", {"tiles": _control_tower()})
 
 
 @app.get("/health", response_class=HTMLResponse)
@@ -242,3 +239,67 @@ def _qc_chart_div(rep) -> str:
         xaxis_title="check", yaxis_title="count",
     )
     return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)
+
+
+def _control_tower() -> list[dict]:
+    """Aggregate one status tile per view, with data provenance + a real metric.
+
+    Each provider call is isolated so a single failure never breaks the hub.
+    provenance: "real" | "partial" | "synthetic".
+    """
+    tiles: list[dict] = []
+
+    def tile(name, href, provenance, headline, sub):
+        tiles.append({"name": name, "href": href, "provenance": provenance,
+                      "headline": headline, "sub": sub})
+
+    try:
+        h = provider.get_health()
+        tile("Connectivity", "/health", "real",
+             h.connection_state, f"source: {h.source}")
+    except Exception as exc:  # noqa: BLE001
+        tile("Connectivity", "/health", "real", "unavailable", str(exc)[:60])
+    try:
+        u = provider.get_universe_summary()
+        tile("Universe", "/surfaces", "real",
+             f"{u.underlying_count} underlyings / {u.option_count} options",
+             f"session {u.session_date}")
+    except Exception as exc:  # noqa: BLE001
+        tile("Universe", "/surfaces", "real", "unavailable", str(exc)[:60])
+    try:
+        o = obs.get_snapshot()
+        tile("Observability", "/observability", "real",
+             f"{o.total_market_events} events / {o.total_errors} errors",
+             f"{len(o.sessions)} sessions @ {o.trade_date}")
+    except Exception as exc:  # noqa: BLE001
+        tile("Observability", "/observability", "real", "unavailable", str(exc)[:60])
+    try:
+        q = qc_provider.get_report()
+        tile("QC / Triage", "/qc", "real",
+             f"{q.reject} reject / {q.caution} caution / {q.usable} usable",
+             f"{len(q.failures)} failing checks @ {q.trade_date}")
+    except Exception as exc:  # noqa: BLE001
+        tile("QC / Triage", "/qc", "real", "unavailable", str(exc)[:60])
+    try:
+        u = provider.get_universe_summary()
+        sym = u.underlyings[0]["symbol"] if u.underlyings else "SPY"
+        n_exp = len(provider.list_expiries(sym))
+        tile("Vol Surface (2D/3D)", "/surface3d", "partial",
+             f"{n_exp} maturities ({sym})", "strikes REAL / IV synthetic (Step 8)")
+    except Exception as exc:  # noqa: BLE001
+        tile("Vol Surface (2D/3D)", "/surface3d", "partial", "unavailable", str(exc)[:60])
+    try:
+        sc = scen.run_scenario("SPY")
+        tile("Scenario / Stress", "/scenario", "partial",
+             f"worst PnL {sc.worst_pnl:,.0f}",
+             "spot+forward REAL / book+pricing synthetic")
+    except Exception as exc:  # noqa: BLE001
+        tile("Scenario / Stress", "/scenario", "partial", "unavailable", str(exc)[:60])
+    try:
+        rk = risk_provider.get_risk("SPY")
+        tile("Risk & Greeks", "/risk", "partial",
+             f"vega {rk.net_vega:,.0f} / theta {rk.net_theta:,.0f}",
+             "spot+forward REAL / greeks synthetic (Step 11)")
+    except Exception as exc:  # noqa: BLE001
+        tile("Risk & Greeks", "/risk", "partial", "unavailable", str(exc)[:60])
+    return tiles

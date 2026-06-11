@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Overview{% endblock %}
+{% block title %}Control Tower{% endblock %}
 {% block content %}
-<h1>Overview</h1>
-<div class="grid">
-  <section class="card">
-    <h2>Connectivity</h2>
-    <p>Status: <span class="badge {{ 'ok' if health.connected else 'bad' }}">{{ health.connection_state }}</span></p>
-    <p class="muted">source: {{ health.source }}</p>
-    <a href="/health">Details →</a>
-  </section>
-  <section class="card">
-    <h2>Universe (Step 2)</h2>
-    <p><b>{{ universe.underlying_count }}</b> underlyings · <b>{{ universe.option_count }}</b> options</p>
-    <p class="muted">session {{ universe.session_date }} · fp {{ universe.config_fingerprint }}</p>
-    <a href="/surfaces">Surface explorer →</a>
-  </section>
+<h1>Control Tower</h1>
+<p class="muted">Live status of every view. <span class="badge real">real</span> = backend data on disk ·
+<span class="badge partial">partial</span> = real base + synthetic analytics (swappable when Steps 8/10/11 land).</p>
+<div class="tower">
+  {% for t in tiles %}
+  <a class="card tile prov-{{ t.provenance }}" href="{{ t.href }}">
+    <div class="tile-top">
+      <h2>{{ t.name }}</h2>
+      <span class="badge {{ t.provenance }}">{{ t.provenance }}</span>
+    </div>
+    <p class="tile-headline">{{ t.headline }}</p>
+    <p class="muted small">{{ t.sub }}</p>
+  </a>
+  {% endfor %}
 </div>
 {% endblock %}
