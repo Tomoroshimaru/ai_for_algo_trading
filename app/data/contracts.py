@@ -195,6 +195,8 @@ class RiskReport:
     net_theta: float = 0.0
     gross_delta: float = 0.0
     net_value: float = 0.0
+    model: str | None = None
+    recon_breaches: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

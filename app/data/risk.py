@@ -13,6 +13,8 @@ import app._paths  # noqa: F401
 
 from app.data.contracts import GreekRow, RiskReport
 from app.data.scenario import ScenarioProvider, _black76
+from utils.config import load_config
+from storage.parquet_store import ParquetStore
 
 
 def _norm_pdf(x: float) -> float:
@@ -50,8 +52,80 @@ def _greeks(forward: float, strike: float, tenor: float, vol: float, right: str)
 class RiskProvider:
     def __init__(self) -> None:
         self._scen = ScenarioProvider()
+        self._cfg = load_config()
+        self._pq = ParquetStore(self._cfg.environment.data_dir)
+
+    def _pq_latest(self, dataset: str) -> str | None:
+        root = self._pq._dataset_root(dataset)  # noqa: SLF001
+        if not root.exists():
+            return None
+        dates = sorted(d.name.split("=")[1] for d in root.glob("trade_date=*"))
+        return dates[-1] if dates else None
+
+    @staticmethod
+    def _f(v, default=0.0):
+        try:
+            return float(v) if v == v else default  # noqa: PLR0124 (nan check)
+        except (TypeError, ValueError):
+            return default
 
     def get_risk(self, underlying: str) -> RiskReport:
+        real = self._real_risk(underlying)
+        return real if real is not None else self._synthetic_risk(underlying)
+
+    # ---- REAL: pricing (Step 10) + risk engine (Step 11) ---------------
+    def _real_risk(self, underlying: str) -> RiskReport | None:
+        td = self._pq_latest("greeks")
+        if not td:
+            return None
+        g = self._pq.read("greeks", trade_date=td)
+        if g is None or g.empty:
+            return None
+        g = g[g["underlying"] == underlying]
+        if g.empty:
+            return None
+        rows: list[GreekRow] = []
+        for _, r in g.iterrows():
+            qty = self._f(r["quantity"]); mult = self._f(r["multiplier"], 1.0)
+            udelta = self._f(r["delta"]); ugamma = self._f(r["gamma"])
+            right = r["option_right"] if isinstance(r["option_right"], str) else "-"
+            rows.append(GreekRow(
+                label=str(r["instrument_key"]),
+                expiry=str(r["expiry"]) if isinstance(r["expiry"], str) else "",
+                strike=self._f(r["strike"]), right=right, qty=qty, multiplier=mult,
+                vol=round(self._f(r["vol"]), 4), price=round(self._f(r["price"]), 4),
+                delta=round(qty * mult * udelta, 2), gamma=round(qty * mult * ugamma, 4),
+                vega=round(self._f(r["dollar_vega"]), 2), theta=round(self._f(r["dollar_theta"]), 2),
+            ))
+        # broker reconciliation breaches (real)
+        breaches: list[dict] = []
+        td_rec = self._pq_latest("risk_recon")
+        if td_rec:
+            rec = self._pq.read("risk_recon", trade_date=td_rec)
+            if rec is not None and not rec.empty:
+                rec = rec[(rec["underlying"] == underlying) & (rec["breach"])]
+                breaches = [
+                    {"instrument": str(x["instrument_key"]), "greek": str(x["greek"]),
+                     "computed": round(self._f(x["computed"]), 4), "broker": round(self._f(x["broker"]), 4),
+                     "abs_diff": round(self._f(x["abs_diff"]), 4), "threshold": round(self._f(x["threshold"]), 4)}
+                    for _, x in rec.iterrows()
+                ]
+        spot = self._f(g["spot"].iloc[0])
+        model = str(g["model"].iloc[0]) if "model" in g else None
+        return RiskReport(
+            source=f"REAL — pricing (Step 10) + risk engine (Step 11), model={model} @ {td}",
+            underlying=underlying, spot=round(spot, 4), rows=rows,
+            net_delta=round(sum(r.delta for r in rows), 2),
+            net_gamma=round(sum(r.gamma for r in rows), 4),
+            net_vega=round(sum(r.vega for r in rows), 2),
+            net_theta=round(sum(r.theta for r in rows), 2),
+            gross_delta=round(sum(abs(r.delta) for r in rows), 2),
+            net_value=round(sum(self._f(v) for v in g["position_value"]), 2),
+            model=model, recon_breaches=breaches,
+        )
+
+    # ---- SYNTHETIC fallback (analytic Black-76) ------------------------
+    def _synthetic_risk(self, underlying: str) -> RiskReport:
         base = self._scen.get_market_base(underlying)
         curve = self._scen.get_forward_curve(underlying)
         spot = base.spot or (curve[0].forward if curve else float("nan"))

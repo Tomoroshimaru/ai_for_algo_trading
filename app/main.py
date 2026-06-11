@@ -284,8 +284,8 @@ def _control_tower() -> list[dict]:
         u = provider.get_universe_summary()
         sym = u.underlyings[0]["symbol"] if u.underlyings else "SPY"
         n_exp = len(provider.surface_expiries(sym))
-        tile("Vol Surface (2D/3D)", "/surface3d", "partial",
-             f"{n_exp} maturities ({sym})", "strikes REAL / IV synthetic (Step 8)")
+        tile("Vol Surface (2D/3D)", "/surface3d", "real",
+             f"{n_exp} maturities ({sym})", "fitted IV surface (Steps 8-9)")
     except Exception as exc:  # noqa: BLE001
         tile("Vol Surface (2D/3D)", "/surface3d", "partial", "unavailable", str(exc)[:60])
     try:
@@ -297,9 +297,11 @@ def _control_tower() -> list[dict]:
         tile("Scenario / Stress", "/scenario", "partial", "unavailable", str(exc)[:60])
     try:
         rk = risk_provider.get_risk("SPY")
-        tile("Risk & Greeks", "/risk", "partial",
+        prov = "real" if rk.model else "partial"
+        nb = len(rk.recon_breaches)
+        tile("Risk & Greeks", "/risk", prov,
              f"vega {rk.net_vega:,.0f} / theta {rk.net_theta:,.0f}",
-             "spot+forward REAL / greeks synthetic (Step 11)")
+             f"{rk.model or 'synthetic'}" + (f" · {nb} recon breach(es)" if nb else ""))
     except Exception as exc:  # noqa: BLE001
         tile("Risk & Greeks", "/risk", "partial", "unavailable", str(exc)[:60])
     return tiles

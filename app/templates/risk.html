@@ -21,7 +21,7 @@
   <div class="card kpi"><span>{{ "{:,.0f}".format(r.net_value) }}</span><label>net book value</label></div>
 </div>
 
-<h2>Positions <span class="muted small">(synthetic book · spot {{ "%.2f"|format(r.spot) }})</span></h2>
+<h2>Positions <span class="muted small">(model {{ r.model or '—' }} · spot {{ "%.2f"|format(r.spot) }})</span></h2>
 <table class="data">
   <thead><tr><th>leg</th><th>right</th><th>qty</th><th>vol</th><th>price</th><th>delta</th><th>gamma</th><th>vega</th><th>theta</th></tr></thead>
   <tbody>
@@ -37,5 +37,17 @@
   {% endfor %}
   </tbody>
 </table>
+{% if r.recon_breaches %}
+<h2>Broker reconciliation breaches <span class="muted small">(real risk_recon, Step 11)</span></h2>
+<table class="data">
+  <thead><tr><th>instrument</th><th>greek</th><th>computed</th><th>broker</th><th>abs diff</th><th>threshold</th></tr></thead>
+  <tbody>
+  {% for b in r.recon_breaches %}
+    <tr><td class="small">{{ b.instrument }}</td><td>{{ b.greek }}</td><td>{{ b.computed }}</td>
+    <td>{{ b.broker }}</td><td class="bad">{{ b.abs_diff }}</td><td>{{ b.threshold }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 <p class="muted small">delta wrt forward · vega per 1 vol point (0.01) · theta per calendar day · undiscounted Black-76 (DF=1).</p>
 {% endblock %}
