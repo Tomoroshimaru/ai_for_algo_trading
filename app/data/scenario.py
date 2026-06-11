@@ -111,22 +111,65 @@ class ScenarioProvider:
                 ))
         return legs
 
+    def _real_book(self, underlying: str, curve: list[ForwardPoint]) -> list[BookLeg] | None:
+        """Real positions from the greeks dataset (Step 11); None if absent."""
+        td = self._latest_trade_date("greeks")
+        if not td:
+            return None
+        g = self._pq.read("greeks", trade_date=td)
+        if g is None or g.empty:
+            return None
+        g = g[g["underlying"] == underlying]
+        if g.empty:
+            return None
+        legs: list[BookLeg] = []
+        for _, r in g.iterrows():
+            right = r["option_right"] if isinstance(r["option_right"], str) else "-"
+            vol = float(r["vol"]) if r["vol"] == r["vol"] else 0.0  # noqa: PLR0124
+            exp = str(r["expiry"]) if isinstance(r["expiry"], str) else ""
+            strike = float(r["strike"]) if r["strike"] == r["strike"] else 0.0  # noqa: PLR0124
+            legs.append(BookLeg(
+                label=str(r["instrument_key"]), expiry=exp, strike=strike, right=right,
+                qty=float(r["quantity"]), multiplier=float(r["multiplier"]),
+                vol=round(vol, 4), base_price=round(float(r["price"]), 4),
+            ))
+        return legs
+
     def run_scenario(self, underlying: str) -> ScenarioResult:
         base = self.get_market_base(underlying)
         curve = self.get_forward_curve(underlying)
         spot = base.spot or (curve[0].forward if curve else float("nan"))
-        legs = self.build_book(curve)
         fwd_by_exp = {fp.expiry: fp for fp in curve}
+
+        real_book = self._real_book(underlying, curve)
+        legs = real_book if real_book is not None else self.build_book(curve)
+
+        # per-option (forward, tenor) meta, real where possible
+        ref = self._latest_trade_date("greeks") or self._latest_trade_date("forwards")
+        ref_d = dt.date.fromisoformat(ref) if ref else dt.date.today()
+        meta: dict[str, tuple[float, float]] = {}
+        for leg in legs:
+            if leg.right not in ("C", "P"):
+                continue
+            fp = fwd_by_exp.get(leg.expiry)
+            if fp is not None:
+                meta[leg.label] = (fp.forward, fp.tenor_years)
+            else:
+                t = max((dt.date.fromisoformat(leg.expiry) - ref_d).days, 1) / 365.0
+                meta[leg.label] = (spot, t)
 
         def book_value(spot_shock: float, vol_shock: float) -> tuple[float, list[float]]:
             total = 0.0
             per_leg = []
             for leg in legs:
-                fp = fwd_by_exp[leg.expiry]
-                f_shocked = fp.forward * (1.0 + spot_shock)
-                v_shocked = max(leg.vol + vol_shock, 0.01)
-                price = _black76(f_shocked, leg.strike, fp.tenor_years, v_shocked, leg.right)
-                val = leg.qty * leg.multiplier * price
+                if leg.right not in ("C", "P"):          # linear instrument (stock)
+                    val = leg.qty * leg.multiplier * spot * (1.0 + spot_shock)
+                else:
+                    f0, tenor = meta[leg.label]
+                    f_shocked = f0 * (1.0 + spot_shock)
+                    v_shocked = max(leg.vol + vol_shock, 0.01)
+                    val = leg.qty * leg.multiplier * _black76(
+                        f_shocked, leg.strike, tenor, v_shocked, leg.right)
                 per_leg.append(val)
                 total += val
             return total, per_leg
@@ -144,17 +187,20 @@ class ScenarioProvider:
                     worst = (ss, vs, pnl)
             matrix.append(row)
 
-        # contributors at the worst-case cell
         _, worst_legs = book_value(worst[0], worst[1])
         contributors = sorted(
             ({"leg": leg.label, "pnl": round(worst_legs[i] - base_legs[i], 2)}
              for i, leg in enumerate(legs)),
             key=lambda d: d["pnl"],
         )
-        real = base.spot is not None and bool(curve)
-        src = ("base spot + forward curve REAL (Steps 5-6); book/IV/Black-76 reval "
-               "SYNTHETIC (Steps 8/10/11 PENDING)") if real else \
-              "no real market_state/forwards on disk — run Steps 5-6 first"
+        if real_book is not None:
+            src = ("book + base vol + forward REAL (greeks/forwards, Steps 6/11); "
+                   "spot×vol stress is parametric (Black-76 bump)")
+        elif base.spot is not None and curve:
+            src = ("base spot + forward curve REAL (Steps 5-6); illustrative book/IV "
+                   "SYNTHETIC")
+        else:
+            src = "no real market_state/forwards on disk — run Steps 5-6 first"
         return ScenarioResult(
             source=src, underlying=underlying, spot=round(float(spot), 4),
             base_value=round(base_value, 2), spot_shocks=_SPOT_SHOCKS, vol_shocks=_VOL_SHOCKS,

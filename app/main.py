@@ -290,9 +290,10 @@ def _control_tower() -> list[dict]:
         tile("Vol Surface (2D/3D)", "/surface3d", "partial", "unavailable", str(exc)[:60])
     try:
         sc = scen.run_scenario("SPY")
-        tile("Scenario / Stress", "/scenario", "partial",
+        sc_real = "REAL" in sc.source or sc.source.startswith("book")
+        tile("Scenario / Stress", "/scenario", "real" if sc_real else "partial",
              f"worst PnL {sc.worst_pnl:,.0f}",
-             "spot+forward REAL / book+pricing synthetic")
+             "real book + parametric spot×vol stress")
     except Exception as exc:  # noqa: BLE001
         tile("Scenario / Stress", "/scenario", "partial", "unavailable", str(exc)[:60])
     try:
