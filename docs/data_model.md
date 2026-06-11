@@ -170,3 +170,28 @@ Verified: Hull reference call = 10.4506; put-call parity to 1e-9; CRR American
 call (no div) converges to European (~1/N); American put shows early-exercise
 premium; sign conventions and T->0 / sigma->0 limits covered; 512-step tree in
 ~3 ms; 10k vectorized prices < 2 s.
+
+## Per-position & portfolio risk analytics (Step 11)
+`src/risk/analytics.py` produces the canonical risk snapshot reused by scenarios
+and dashboards. Line-level AND aggregate outputs are both persisted - debugging
+starts at the line level (junior note).
+- **Sensitivity set**: instrument-level price, delta, gamma, vega, theta, rho,
+  vanna, volga + monetized $-sensitivities; portfolio-level = summed.
+- **Join**: positions (source of record or hypothetical) x market_state (spot)
+  x iv_points (solved vol), priced via the Step 10 engine. Options parsed from
+  instrument_key; stock legs booked as linear delta=1 exposure. Unpriceable
+  lines flagged status=no_spot/no_vol and excluded from aggregates.
+- **Dollar conventions (fixed & stable)**: dollar_delta = delta*S*mult*qty;
+  dollar_gamma = gamma*S^2*mult*qty*0.01 (per +1% spot); dollar_vega =
+  (vega/100)*mult*qty (per +1 vol pt); dollar_theta = (theta/365)*mult*qty
+  (per day). mult=100 options / 1 stock.
+- **Aggregation**: by portfolio (ALL), underlying, expiry (maturity), instrument.
+- **Reconciliation**: `reconcile_greeks` compares computed vs broker Greeks;
+  abs_diff > threshold -> breach=True (surfaced automatically).
+- **Storage**: line-level `greeks` (enriched), `risk_aggregates`, `risk_recon`.
+
+Verified: line price == pricer to 1e-9; all four $-conventions checked; portfolio
+sum == sum of lines; deterministic aggregates on identical inputs; recon breach
+/ no-breach both fire; missing spot/vol flagged. End-to-end on real spot 728.87:
+3-line book -> $delta 1.12M, $gamma 23k, $vega 2169/pt, $theta -103/day; broker
+delta discrepancy 0.125 surfaced as breach.

@@ -23,7 +23,7 @@ def test_all_required_datasets_exist():
     required = {
         "raw_events", "market_state", "forwards", "iv_points", "surface_params",
         "model_prices", "greeks", "scenarios", "positions", "qc_results",
-        "forward_diagnostics", "surface_grid",
+        "forward_diagnostics", "surface_grid", "risk_aggregates", "risk_recon",
     }
     assert required == set(DATASETS)
 
