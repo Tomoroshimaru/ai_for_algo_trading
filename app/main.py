@@ -135,20 +135,20 @@ def _surface3d_div(underlying: str, expiries: list[str]):
             sl = provider.get_surface_slice(underlying, e)
         except (KeyError, FileNotFoundError):
             continue
-        if sl.points:
+        if sl.fitted_k and sl.fitted_iv:
             slices.append(sl)
     if len(slices) < 2:
-        return "<p class=\'prov\'>Not enough maturities to build a 3D surface.</p>", 0, ""
-    kmin = max(min(p.log_moneyness for p in s.points) for s in slices)
-    kmax = min(max(p.log_moneyness for p in s.points) for s in slices)
+        return "<p class=\'prov\'>Not enough maturities to build a 3D surface.</p>", len(slices), ""
+    kmin = max(min(sl.fitted_k) for sl in slices)
+    kmax = min(max(sl.fitted_k) for sl in slices)
     kg = np.linspace(kmin, kmax, 40)
     z, y = [], []
-    for s in sorted(slices, key=lambda s: s.tenor_years):
-        ks = np.array([p.log_moneyness for p in s.points])
-        ivs = np.array([p.iv for p in s.points])
+    for sl in sorted(slices, key=lambda s: s.tenor_years):
+        ks = np.array(sl.fitted_k)
+        ivs = np.array(sl.fitted_iv)
         order = np.argsort(ks)
         z.append(list(np.interp(kg, ks[order], ivs[order])))
-        y.append(round(s.tenor_years, 4))
+        y.append(round(sl.tenor_years, 4))
     fig = go.Figure(data=[go.Surface(x=list(kg), y=y, z=z, colorscale="Viridis",
                                      colorbar=dict(title="IV"))])
     fig.update_layout(
