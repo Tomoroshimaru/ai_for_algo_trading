@@ -64,8 +64,10 @@ _MARKET_STATE = _with_common([
     pa.field("bid", pa.float64()), pa.field("ask", pa.float64()),
     pa.field("last", pa.float64()), pa.field("mid", pa.float64()),
     pa.field("spread_pct", pa.float64()),
-    pa.field("reference_type", pa.string()),   # mid | last | close | fallback
+    pa.field("reference_price", pa.float64()),  # chosen spot
+    pa.field("reference_type", pa.string()),    # mid | last | close | mid_wide | none
     pa.field("is_stale", pa.bool_()),
+    pa.field("is_market_open", pa.bool_()),
     pa.field("age_sec", pa.float64()),
     pa.field("source_session_id", pa.string(), nullable=False),  # lineage
 ])

@@ -55,3 +55,19 @@ Equivalent one-liner over the raw dataset:
 raw = store.read("raw_events", trade_date="2026-06-11", underlying="SPY")
 raw[raw.session_id == session_id]
 ```
+
+## Market-state snapshots (Step 5)
+The `market_state` dataset is produced by the **pure** builder in
+`src/snapshots/builder.py` (raw events in, snapshots out; no I/O, no clock
+reads). Guarantees:
+- **Deterministic**: same events + same `SnapshotParams` -> identical rows.
+- **Reference spot**: mid when the bid/ask spread is within `max_spread_pct`,
+  otherwise documented fallbacks `last` -> `close` -> `mid_wide`, recorded in
+  `reference_type` (fallbacks are labeled, never hidden). Chosen spot in
+  `reference_price`.
+- **Staleness**: `age_sec` is the gap between `snapshot_ts` and the freshest
+  eligible quote; `is_stale = age_sec > max_age_sec`.
+- **Option join**: each instrument takes its most recent quote at or before
+  `snapshot_ts`; quotes after the snapshot are excluded.
+- **Completeness**: `compute_completeness` reports fresh-observation fraction
+  per (underlying, maturity), bounded in [0, 1].
