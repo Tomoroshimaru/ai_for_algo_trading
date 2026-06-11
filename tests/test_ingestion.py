@@ -40,6 +40,7 @@ def test_normalize_ticker_drops_nan_and_missing():
 def test_classify_error_pacing_entitlement_other():
     assert classify_error(100, "x", "s1").kind == OpsEventKind.PACING
     assert classify_error(354, "x", "s1").kind == OpsEventKind.ENTITLEMENT
+    assert classify_error(10167, "x", "s1").kind == OpsEventKind.ENTITLEMENT
     assert classify_error(504, "x", "s1").kind == OpsEventKind.ERROR
 
 

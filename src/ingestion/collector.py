@@ -28,7 +28,7 @@ _TICK_FIELDS = {
 
 # IBKR error codes -> structured ops classification.
 _PACING_CODES = {100, 162, 420}        # pacing violations / historical pacing
-_ENTITLEMENT_CODES = {354, 10089, 10168, 10197}  # market-data not subscribed
+_ENTITLEMENT_CODES = {354, 10089, 10167, 10168, 10197}  # market-data not subscribed
 
 
 def _utcnow() -> dt.datetime:
