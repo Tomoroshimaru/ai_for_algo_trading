@@ -107,3 +107,21 @@ emits its own `reason_code`, logged separately for tuning and postmortems.
 Reason codes: BID_NONPOSITIVE, INCOMPLETE_QUOTE, SPREAD_WIDE, SPREAD_ABSURD,
 NO_SPREAD, STALE_QUOTE, CROSSED_MARKET, LOCKED_MARKET, BELOW_INTRINSIC,
 ABOVE_BOUND, LOW_OI, LOW_VOLUME, MONOTONICITY_VIOLATION, PARITY_OUTLIER.
+
+## IV inversion engine (Step 8)
+`src/iv/inversion.py` converts filtered option prices into implied vols.
+- **Scalar solver first** (junior note): `invert_black76` uses a bracketed
+  bisection on sigma in `[1e-4, 5.0]` - deterministic and robust - over Black-76
+  pricing `black76_price` (options on the parity forward, optional DF=exp(-rT)).
+- **No-arbitrage / intrinsic bounds** detect unsolvable inputs before solving.
+- **Status labels**: `solved`, `near_intrinsic`, `no_arbitrage`, `short_dated`,
+  `no_bracket` - pathological cases are explicit, never silent.
+- **Diagnostics per point**: n_iter, final residual, bracket_lo/hi, delta,
+  ttm_years, method (`black76` | `american_proxy`). American options use a
+  documented European-proxy convention (early-exercise premium ignored).
+- **Batch wrapper** `invert_chain` solves a whole QC-filtered chain against the
+  Step 6 forwards, writing coordinates (strike, log-moneyness, maturity, delta)
+  + diagnostics to `iv_points`.
+
+Reference round-trip recovers injected sigma to ~1e-11; finite price
+perturbations move IV monotonically and bounded (no numerical explosions).

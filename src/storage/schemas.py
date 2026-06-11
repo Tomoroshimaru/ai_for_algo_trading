@@ -106,9 +106,16 @@ _IV_POINTS = _with_common([
     pa.field("strike", pa.float64(), nullable=False),
     pa.field("option_right", pa.string(), nullable=False),  # C | P
     pa.field("iv", pa.float64()),
-    pa.field("moneyness", pa.float64()),
+    pa.field("moneyness", pa.float64()),         # log(K / F)
     pa.field("forward", pa.float64()),
-    pa.field("method", pa.string()),
+    pa.field("delta", pa.float64()),
+    pa.field("ttm_years", pa.float64()),
+    pa.field("method", pa.string()),             # black76 | american_proxy
+    pa.field("status", pa.string()),             # solved | near_intrinsic | no_arbitrage | short_dated | no_bracket
+    pa.field("n_iter", pa.int32()),
+    pa.field("residual", pa.float64()),
+    pa.field("bracket_lo", pa.float64()),
+    pa.field("bracket_hi", pa.float64()),
     pa.field("source_session_id", pa.string()),
 ])
 
