@@ -110,6 +110,24 @@ class RiskProvider:
                      "abs_diff": round(self._f(x["abs_diff"]), 4), "threshold": round(self._f(x["threshold"]), 4)}
                     for _, x in rec.iterrows()
                 ]
+        # real aggregates (portfolio + by-expiry), authoritative net greeks incl rho
+        groups: list[dict] = []
+        td_agg = self._pq_latest("risk_aggregates")
+        if td_agg:
+            agg = self._pq.read("risk_aggregates", trade_date=td_agg)
+            if agg is not None and not agg.empty:
+                a = agg[(agg["underlying"].isin([underlying, "ALL"]))
+                        & (agg["group_key"].isin(["portfolio", "expiry"]))]
+                for _, x in a.sort_values(["group_key", "group_value"]).iterrows():
+                    groups.append({
+                        "group": str(x["group_key"]), "value": str(x["group_value"]),
+                        "n_lines": int(x["n_lines"]),
+                        "delta": round(self._f(x["dollar_delta"]), 0),
+                        "gamma": round(self._f(x["dollar_gamma"]), 0),
+                        "vega": round(self._f(x["dollar_vega"]), 0),
+                        "theta": round(self._f(x["dollar_theta"]), 0),
+                        "rho": round(self._f(x["rho"]), 2),
+                    })
         spot = self._f(g["spot"].iloc[0])
         model = str(g["model"].iloc[0]) if "model" in g else None
         return RiskReport(
@@ -121,7 +139,7 @@ class RiskProvider:
             net_theta=round(sum(r.theta for r in rows), 2),
             gross_delta=round(sum(abs(r.delta) for r in rows), 2),
             net_value=round(sum(self._f(v) for v in g["position_value"]), 2),
-            model=model, recon_breaches=breaches,
+            model=model, recon_breaches=breaches, groups=groups,
         )
 
     # ---- SYNTHETIC fallback (analytic Black-76) ------------------------

@@ -197,6 +197,7 @@ class RiskReport:
     net_value: float = 0.0
     model: str | None = None
     recon_breaches: list[dict] = field(default_factory=list)
+    groups: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -37,6 +37,21 @@
   {% endfor %}
   </tbody>
 </table>
+{% if r.groups %}
+<h2>Portfolio aggregates <span class="muted small">(real risk_aggregates — $ greeks, Step 11)</span></h2>
+<table class="data">
+  <thead><tr><th>group</th><th>value</th><th>lines</th><th>$ delta</th><th>$ gamma</th><th>$ vega</th><th>$ theta</th><th>rho</th></tr></thead>
+  <tbody>
+  {% for x in r.groups %}
+    <tr class="{{ 'worst' if x.group=='portfolio' else '' }}">
+      <td class="small">{{ x.group }}</td><td>{{ x.value }}</td><td>{{ x.n_lines }}</td>
+      <td>{{ "{:,.0f}".format(x.delta) }}</td><td>{{ "{:,.0f}".format(x.gamma) }}</td>
+      <td>{{ "{:,.0f}".format(x.vega) }}</td><td>{{ "{:,.0f}".format(x.theta) }}</td><td>{{ x.rho }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% if r.recon_breaches %}
 <h2>Broker reconciliation breaches <span class="muted small">(real risk_recon, Step 11)</span></h2>
 <table class="data">
