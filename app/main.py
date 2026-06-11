@@ -61,7 +61,7 @@ def surfaces_page(request: Request, underlying: str | None = None, expiry: str |
     sym = underlying or (symbols[0] if symbols else None)
     if sym is None:
         raise HTTPException(503, "No backend universe available yet (run Step 2 first)")
-    expiries = provider.list_expiries(sym)
+    expiries = provider.surface_expiries(sym)
     exp = expiry or (expiries[0] if expiries else None)
     if exp is None:
         raise HTTPException(404, f"No expiries for {sym}")
@@ -120,7 +120,7 @@ def surface3d_page(request: Request, underlying: str | None = None):
     sym = underlying or (symbols[0] if symbols else None)
     if sym is None:
         raise HTTPException(503, "No backend universe available yet")
-    expiries = provider.list_expiries(sym)[:10]
+    expiries = provider.surface_expiries(sym)[:10]
     plot, used, src = _surface3d_div(sym, expiries)
     return templates.TemplateResponse(request, "surface3d.html", {
         "symbols": symbols, "sym": sym, "used": used, "src": src, "plot": plot,
@@ -283,7 +283,7 @@ def _control_tower() -> list[dict]:
     try:
         u = provider.get_universe_summary()
         sym = u.underlyings[0]["symbol"] if u.underlyings else "SPY"
-        n_exp = len(provider.list_expiries(sym))
+        n_exp = len(provider.surface_expiries(sym))
         tile("Vol Surface (2D/3D)", "/surface3d", "partial",
              f"{n_exp} maturities ({sym})", "strikes REAL / IV synthetic (Step 8)")
     except Exception as exc:  # noqa: BLE001

@@ -20,6 +20,7 @@ import numpy as np
 
 from utils.config import load_config
 from universe.store import UniverseStore
+from storage.parquet_store import ParquetStore
 
 from app.data.contracts import (
     HealthMetrics,
@@ -36,6 +37,7 @@ class AppProvider:
         self._cfg = load_config()
         self._store = UniverseStore(self._cfg.environment.data_dir)
         self._log_dir = self._cfg.environment.log_dir
+        self._pq = ParquetStore(self._cfg.environment.data_dir)
 
     # ----- backend discovery helpers ------------------------------------
     def latest_session_date(self) -> str | None:
@@ -125,8 +127,69 @@ class AppProvider:
     def _seed(underlying: str, expiry: str) -> int:
         return int(hashlib.sha256(f"{underlying}:{expiry}".encode()).hexdigest()[:8], 16)
 
+    # ----- real surface (Steps 8-9) -------------------------------------
+    def _pq_latest(self, dataset: str) -> str | None:
+        root = self._pq._dataset_root(dataset)  # noqa: SLF001
+        if not root.exists():
+            return None
+        dates = sorted(d.name.split("=")[1] for d in root.glob("trade_date=*"))
+        return dates[-1] if dates else None
+
+    def surface_expiries(self, underlying: str) -> list[str]:
+        """Expiries that have a real fitted surface; falls back to the universe."""
+        td = self._pq_latest("surface_grid")
+        if td:
+            g = self._pq.read("surface_grid", trade_date=td)
+            if g is not None and not g.empty:
+                sub = g[g["underlying"] == underlying]
+                if not sub.empty:
+                    return sorted({str(e) for e in sub["expiry"]})
+        return self.list_expiries(underlying)
+
+    def _real_surface_slice(self, underlying: str, expiry: str) -> SurfaceSlice | None:
+        td = self._pq_latest("surface_grid")
+        if not td:
+            return None
+        grid = self._pq.read("surface_grid", trade_date=td)
+        if grid is None or grid.empty:
+            return None
+        g = grid[(grid["underlying"] == underlying) & (grid["expiry"].astype(str) == expiry)]
+        if g.empty:
+            return None
+        g = g.sort_values("log_moneyness")
+        tenor = float(g["ttm_years"].iloc[0])
+        model = str(g["model"].iloc[0])
+        fitted_k = [float(x) for x in g["log_moneyness"]]
+        fitted_iv = [float(x) for x in g["iv"]]
+        # observed solved IV points (real), if available
+        points: list[SurfacePoint] = []
+        forward = float("nan")
+        td_iv = self._pq_latest("iv_points")
+        if td_iv:
+            iv = self._pq.read("iv_points", trade_date=td_iv)
+            if iv is not None and not iv.empty:
+                pts = iv[(iv["underlying"] == underlying) & (iv["expiry"].astype(str) == expiry)
+                         & (iv["status"] == "solved")]
+                if not pts.empty:
+                    forward = float(pts["forward"].iloc[0])
+                    for _, r in pts.sort_values("strike").iterrows():
+                        k = float(r["moneyness"])
+                        points.append(SurfacePoint(float(r["strike"]), k, float(r["iv"]),
+                                                   float(r["iv"]) ** 2 * tenor))
+        if forward != forward and points:  # noqa: PLR0124
+            forward = points[len(points) // 2].strike
+        return SurfaceSlice(
+            source=f"REAL — IV solver (Step 8) + surface fit (Step 9), model={model}",
+            real_universe=True, underlying=underlying, expiry=expiry, session_date=td,
+            forward=forward, tenor_years=tenor, points=points,
+            fitted_k=fitted_k, fitted_iv=fitted_iv,
+        )
+
     def get_surface_slice(self, underlying: str, expiry: str,
                           session_date: str | None = None) -> SurfaceSlice:
+        real = self._real_surface_slice(underlying, expiry)
+        if real is not None:
+            return real
         sd = session_date or self.latest_session_date()
         if sd is None:
             raise FileNotFoundError("No backend universe session available")
