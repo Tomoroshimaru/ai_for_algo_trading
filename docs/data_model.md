@@ -71,3 +71,19 @@ reads). Guarantees:
   `snapshot_ts`; quotes after the snapshot are excluded.
 - **Completeness**: `compute_completeness` reports fresh-observation fraction
   per (underlying, maturity), bounded in [0, 1].
+
+## Forward & implied-carry engine (Step 6)
+The **pure** engine in `src/forward/engine.py` turns a market-state snapshot into
+a robust forward per maturity plus a full diagnostics trail.
+- **Parity forward** per strike: `F = K + (C - P) / DF`, `DF = exp(-r*T)`
+  (`DF = 1` when no rate is supplied; assumption recorded in `method`).
+- **Liquidity weighting**: `weight = 1 / (1 + call_spread% + put_spread%)`,
+  stale legs get weight 0.
+- **Robust estimate**: weighted median of per-strike forwards; outliers rejected
+  by MAD with a relative parity-residual floor (so MAD=0 still rejects gross
+  outliers). A few bad pairs cannot move the forward.
+- **Implied carry**: `ln(F / spot) / T` (cost-of-carry rate).
+- **Outputs**: `forwards` (forward, implied_carry, n_pairs, is_reliable) and
+  `forward_diagnostics` (per-strike call/put mids, parity_forward, weight,
+  residual, quality_label in {inlier, outlier, stale, incomplete}) so any
+  poor-quality maturity is explainable from stored data alone.

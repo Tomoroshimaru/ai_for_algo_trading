@@ -23,6 +23,7 @@ def test_all_required_datasets_exist():
     required = {
         "raw_events", "market_state", "forwards", "iv_points", "surface_params",
         "model_prices", "greeks", "scenarios", "positions", "qc_results",
+        "forward_diagnostics",
     }
     assert required == set(DATASETS)
 
@@ -76,6 +77,7 @@ def test_recompute_derived_partition_leaves_raw_untouched(tmp_path):
     # write + recompute a derived partition twice
     fwd = pd.DataFrame([{"snapshot_ts": T0, "expiry": "2026-12-18",
                          "forward": 101.0, "implied_carry": 0.01, "method": "putcall",
+                         "n_pairs": 3, "is_reliable": True,
                          "source_session_id": "s1"}])
     store.write_partition("forwards", TD, "SPY", fwd)
     store.write_partition("forwards", TD, "SPY", fwd)   # recompute same partition

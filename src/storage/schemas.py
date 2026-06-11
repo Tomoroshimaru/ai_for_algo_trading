@@ -80,6 +80,22 @@ _FORWARDS = _with_common([
     pa.field("forward", pa.float64(), nullable=False),
     pa.field("implied_carry", pa.float64()),
     pa.field("method", pa.string(), nullable=False),
+    pa.field("n_pairs", pa.int32()),
+    pa.field("is_reliable", pa.bool_()),
+    pa.field("source_session_id", pa.string()),
+])
+
+_FORWARD_DIAGNOSTICS = _with_common([
+    pa.field("snapshot_ts", _TS, nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("expiry", pa.string(), nullable=False),
+    pa.field("strike", pa.float64(), nullable=False),
+    pa.field("call_mid", pa.float64()),
+    pa.field("put_mid", pa.float64()),
+    pa.field("parity_forward", pa.float64()),
+    pa.field("weight", pa.float64()),
+    pa.field("residual", pa.float64()),
+    pa.field("quality_label", pa.string(), nullable=False),  # inlier|outlier|stale|incomplete
     pa.field("source_session_id", pa.string()),
 ])
 
@@ -161,6 +177,7 @@ DATASETS: dict[str, Dataset] = {
     "raw_events": Dataset("raw_events", DataLayer.RAW, _RAW_EVENTS),
     "market_state": Dataset("market_state", DataLayer.NORMALIZED, _MARKET_STATE),
     "forwards": Dataset("forwards", DataLayer.DERIVED, _FORWARDS),
+    "forward_diagnostics": Dataset("forward_diagnostics", DataLayer.DERIVED, _FORWARD_DIAGNOSTICS),
     "iv_points": Dataset("iv_points", DataLayer.DERIVED, _IV_POINTS),
     "surface_params": Dataset("surface_params", DataLayer.DERIVED, _SURFACE_PARAMS),
     "model_prices": Dataset("model_prices", DataLayer.DERIVED, _MODEL_PRICES),
