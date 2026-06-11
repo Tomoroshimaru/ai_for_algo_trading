@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Surface 3D{% endblock %}
+{% block content %}
+<h1>Implied-Vol Surface (3D)</h1>
+<form method="get" class="controls">
+  <label>Underlying
+    <select name="underlying" onchange="this.form.submit()">
+      {% for s in symbols %}<option value="{{ s }}" {{ 'selected' if s==sym }}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <span class="muted">{{ used }} maturities</span>
+</form>
+<p class="prov">{{ src }}</p>
+<div class="plot">{{ plot|safe }}</div>
+{% endblock %}

@@ -65,3 +65,39 @@ class SurfaceSlice:
     points: list[SurfacePoint] = field(default_factory=list)
     fitted_k: list[float] = field(default_factory=list)
     fitted_iv: list[float] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class SessionMetrics:
+    """Per-collector-session ingestion metrics (roadmap Step 15)."""
+    session_id: str
+    market_events: int
+    ops_events: int
+    corrupt_lines: int
+    duration_sec: float
+    event_rate_hz: float
+    reconnects: int
+    disconnects: int
+    errors: int
+    stale_ratio: float
+    max_staleness_sec: float
+    last_event_utc: str | None
+
+
+@dataclass(frozen=True)
+class ObservabilitySnapshot:
+    """System-health / event-rate snapshot for one trade date (Step 15).
+
+    Built by replaying the real append-only raw-event store, so corrupt-line
+    counts and reconnects are observed, never inferred.
+    """
+    source: str
+    trade_date: str | None
+    sessions: list[SessionMetrics] = field(default_factory=list)
+    total_market_events: int = 0
+    total_ops_events: int = 0
+    total_corrupt: int = 0
+    total_reconnects: int = 0
+    total_errors: int = 0
+    distinct_instruments: int = 0
+    stale_quote_tolerance_sec: float = 0.0

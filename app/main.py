@@ -20,12 +20,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.data.providers import AppProvider
+from app.data.observability import ObservabilityProvider
 
 APP_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Volatility Infra — Operator Console")
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 provider = AppProvider()
+obs = ObservabilityProvider()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -95,3 +97,62 @@ def _surface_div(sl) -> str:
         paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
     )
     return pio.to_html(fig, include_plotlyjs="cdn", full_html=False)
+
+
+@app.get("/observability", response_class=HTMLResponse)
+def observability_page(request: Request):
+    snap = obs.get_snapshot()
+    return templates.TemplateResponse(request, "observability.html", {"snap": snap})
+
+
+@app.get("/api/observability")
+def api_observability():
+    return JSONResponse(asdict(obs.get_snapshot()))
+
+
+@app.get("/surface3d", response_class=HTMLResponse)
+def surface3d_page(request: Request, underlying: str | None = None):
+    universe = provider.get_universe_summary()
+    symbols = [u["symbol"] for u in universe.underlyings]
+    sym = underlying or (symbols[0] if symbols else None)
+    if sym is None:
+        raise HTTPException(503, "No backend universe available yet")
+    expiries = provider.list_expiries(sym)[:10]
+    plot, used, src = _surface3d_div(sym, expiries)
+    return templates.TemplateResponse(request, "surface3d.html", {
+        "symbols": symbols, "sym": sym, "used": used, "src": src, "plot": plot,
+    })
+
+
+def _surface3d_div(underlying: str, expiries: list[str]):
+    import numpy as np
+    slices = []
+    for e in expiries:
+        try:
+            sl = provider.get_surface_slice(underlying, e)
+        except (KeyError, FileNotFoundError):
+            continue
+        if sl.points:
+            slices.append(sl)
+    if len(slices) < 2:
+        return "<p class=\'prov\'>Not enough maturities to build a 3D surface.</p>", 0, ""
+    kmin = max(min(p.log_moneyness for p in s.points) for s in slices)
+    kmax = min(max(p.log_moneyness for p in s.points) for s in slices)
+    kg = np.linspace(kmin, kmax, 40)
+    z, y = [], []
+    for s in sorted(slices, key=lambda s: s.tenor_years):
+        ks = np.array([p.log_moneyness for p in s.points])
+        ivs = np.array([p.iv for p in s.points])
+        order = np.argsort(ks)
+        z.append(list(np.interp(kg, ks[order], ivs[order])))
+        y.append(round(s.tenor_years, 4))
+    fig = go.Figure(data=[go.Surface(x=list(kg), y=y, z=z, colorscale="Viridis",
+                                     colorbar=dict(title="IV"))])
+    fig.update_layout(
+        template="plotly_dark", height=560, paper_bgcolor="#0d1117",
+        margin=dict(l=0, r=0, t=40, b=0),
+        title=f"{underlying} — implied-vol surface ({len(slices)} maturities)",
+        scene=dict(xaxis_title="log-moneyness k", yaxis_title="tenor (years)",
+                   zaxis_title="implied vol"),
+    )
+    return pio.to_html(fig, include_plotlyjs="cdn", full_html=False), len(slices), slices[0].source

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Observability{% endblock %}
+{% block content %}
+<h1>Observability <span class="muted small">(real — raw-event store replay, Step 15)</span></h1>
+<p class="prov">source: {{ snap.source }} · stale tolerance {{ snap.stale_quote_tolerance_sec }}s</p>
+{% if snap.trade_date %}
+<div class="grid4">
+  <div class="card kpi"><span>{{ snap.total_market_events }}</span><label>market events</label></div>
+  <div class="card kpi"><span>{{ snap.total_ops_events }}</span><label>ops events</label></div>
+  <div class="card kpi"><span class="{{ 'bad' if snap.total_reconnects else '' }}">{{ snap.total_reconnects }}</span><label>reconnects</label></div>
+  <div class="card kpi"><span class="{{ 'bad' if snap.total_errors else '' }}">{{ snap.total_errors }}</span><label>errors</label></div>
+  <div class="card kpi"><span class="{{ 'bad' if snap.total_corrupt else 'ok' }}">{{ snap.total_corrupt }}</span><label>corrupt lines</label></div>
+  <div class="card kpi"><span>{{ snap.distinct_instruments }}</span><label>instruments</label></div>
+</div>
+<h2>Sessions ({{ snap.trade_date }})</h2>
+<table class="data">
+  <thead><tr><th>session</th><th>mkt</th><th>rate (Hz)</th><th>dur (s)</th><th>ops</th><th>reconn</th><th>disc</th><th>err</th><th>stale ratio</th><th>max stale (s)</th><th>last event (UTC)</th></tr></thead>
+  <tbody>
+  {% for s in snap.sessions %}
+    <tr>
+      <td>{{ s.session_id }}</td><td>{{ s.market_events }}</td><td>{{ s.event_rate_hz }}</td>
+      <td>{{ s.duration_sec }}</td><td>{{ s.ops_events }}</td>
+      <td class="{{ 'bad' if s.reconnects }}">{{ s.reconnects }}</td>
+      <td>{{ s.disconnects }}</td>
+      <td class="{{ 'bad' if s.errors }}">{{ s.errors }}</td>
+      <td>{{ s.stale_ratio }}</td><td>{{ s.max_staleness_sec }}</td>
+      <td class="small">{{ s.last_event_utc }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="prov">No raw events on disk yet — run the Step 3 collector to populate this view.</p>
+{% endif %}
+{% endblock %}

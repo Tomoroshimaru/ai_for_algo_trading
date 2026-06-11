@@ -15,3 +15,10 @@ select{background:var(--bg);color:var(--txt);border:1px solid var(--line);border
 .controls .json{margin-left:auto;color:var(--acc);text-decoration:none}
 .plot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
 footer{color:var(--mut);font-size:12px;text-align:center;padding:18px;border-top:1px solid var(--line);margin-top:30px}
+
+.grid4{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:12px 0}
+.kpi{text-align:center;padding:14px}
+.kpi span{display:block;font-size:26px;font-weight:700;color:var(--acc)}
+.kpi span.bad{color:var(--bad)}.kpi span.ok{color:var(--ok)}
+.kpi label{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+td.bad{color:var(--bad);font-weight:700}
