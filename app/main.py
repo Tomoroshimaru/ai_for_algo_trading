@@ -69,6 +69,7 @@ def surfaces_page(request: Request, underlying: str | None = None, expiry: str |
     return templates.TemplateResponse(request, "surface.html", {
         "symbols": symbols, "expiries": expiries,
         "sym": sym, "exp": exp, "slice": sl, "plot": _surface_div(sl),
+        "params": provider.surface_params(sym, exp),
     })
 
 

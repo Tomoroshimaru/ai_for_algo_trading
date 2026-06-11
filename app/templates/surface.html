@@ -16,5 +16,13 @@
   <a class="json" href="/api/surfaces/{{ sym }}/{{ exp }}" target="_blank" rel="noopener noreferrer">view JSON grid →</a>
 </form>
 <p class="prov">{{ slice.source }}</p>
+{% if params %}
+<div class="grid4">
+  <div class="card kpi"><span>{{ params.model }}</span><label>fit model</label></div>
+  <div class="card kpi"><span class="{{ 'ok' if params.butterfly_ok else 'bad' }}">{{ 'arb-free' if params.butterfly_ok else 'ARBITRAGE' }}</span><label>butterfly check</label></div>
+  <div class="card kpi"><span>{{ "%.2e"|format(params.rmse_iv) if params.rmse_iv is defined else '—' }}</span><label>rmse IV</label></div>
+  <div class="card kpi"><span>{{ "%g"|format(params.n_points) if params.n_points is defined else '—' }}</span><label>fit points</label></div>
+</div>
+{% endif %}
 <div class="plot">{{ plot|safe }}</div>
 {% endblock %}

@@ -146,6 +146,22 @@ class AppProvider:
                     return sorted({str(e) for e in sub["expiry"]})
         return self.list_expiries(underlying)
 
+    def surface_params(self, underlying: str, expiry: str) -> dict | None:
+        """Fitted surface parameters + arbitrage flag (real surface_params, Step 9)."""
+        td = self._pq_latest("surface_params")
+        if not td:
+            return None
+        sp = self._pq.read("surface_params", trade_date=td)
+        if sp is None or sp.empty:
+            return None
+        sub = sp[(sp["underlying"] == underlying) & (sp["expiry"].astype(str) == expiry)]
+        if sub.empty:
+            return None
+        out = {"model": str(sub["model"].iloc[0])}
+        for _, r in sub.iterrows():
+            out[str(r["param_name"])] = float(r["param_value"])
+        return out
+
     def _real_surface_slice(self, underlying: str, expiry: str) -> SurfaceSlice | None:
         td = self._pq_latest("surface_grid")
         if not td:
