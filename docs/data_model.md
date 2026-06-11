@@ -87,3 +87,23 @@ a robust forward per maturity plus a full diagnostics trail.
   `forward_diagnostics` (per-strike call/put mids, parity_forward, weight,
   residual, quality_label in {inlier, outlier, stale, incomplete}) so any
   poor-quality maturity is explainable from stored data alone.
+
+## Quote QC & normalization (Step 7)
+`src/qc/quality.py` decides which option quotes may enter the solver/surface
+layers. QC is a **registry of small named checks** (not a monolithic if): each
+emits its own `reason_code`, logged separately for tuning and postmortems.
+- **Per-quote checks**: `bid_positive`, `spread` (wide->caution, absurd->reject),
+  `age` (stale->caution), `crossed_locked` (bid>ask->reject, bid==ask->caution),
+  `intrinsic` (below intrinsic / above bound -> reject), `liquidity` (low OI/vol).
+- **Chain-level checks**: `monotonicity` (call non-increasing / put non-decreasing
+  in strike -> caution), `parity_outlier` (MAD on K+C-P -> reject).
+- **Classification**: worst check wins -> `USABLE | CAUTION | REJECT`. Rejects are
+  dropped from the filtered chain; cautions are retained but flagged (`qc_status`).
+- **Determinism**: a fixed `thresholds_version` always classifies a quote the same.
+- **Audit**: the raw snapshot (`market_state`) is untouched; the QC table is
+  persisted to `qc_results` (one row per fired check + a FINAL decision per quote),
+  so every rejection or downgrade is explainable.
+
+Reason codes: BID_NONPOSITIVE, INCOMPLETE_QUOTE, SPREAD_WIDE, SPREAD_ABSURD,
+NO_SPREAD, STALE_QUOTE, CROSSED_MARKET, LOCKED_MARKET, BELOW_INTRINSIC,
+ABOVE_BOUND, LOW_OI, LOW_VOLUME, MONOTONICITY_VIOLATION, PARITY_OUTLIER.
