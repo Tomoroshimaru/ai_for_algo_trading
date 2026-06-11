@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}Volatility Infra{% endblock %} · Operator Console</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <header>
+    <span class="brand">◈ Volatility Infra — Operator Console</span>
+    <nav>
+      <a href="/">Overview</a>
+      <a href="/health">System Health</a>
+      <a href="/surfaces">Vol Surface</a>
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>Strategy-agnostic build · data bound to preliminary backend (Steps 1–2); pending steps clearly labeled.</footer>
+</body>
+</html>

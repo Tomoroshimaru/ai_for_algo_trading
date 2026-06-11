@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Vol Surface{% endblock %}
+{% block content %}
+<h1>Vol Surface Explorer</h1>
+<form method="get" class="controls">
+  <label>Underlying
+    <select name="underlying" onchange="this.form.submit()">
+      {% for s in symbols %}<option value="{{ s }}" {{ 'selected' if s==sym }}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Expiry
+    <select name="expiry" onchange="this.form.submit()">
+      {% for e in expiries %}<option value="{{ e }}" {{ 'selected' if e==exp }}>{{ e }}</option>{% endfor %}
+    </select>
+  </label>
+  <a class="json" href="/api/surfaces/{{ sym }}/{{ exp }}" target="_blank">view JSON grid →</a>
+</form>
+<p class="prov">{{ slice.source }}</p>
+<div class="plot">{{ plot|safe }}</div>
+{% endblock %}

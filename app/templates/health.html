@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}System Health{% endblock %}
+{% block content %}
+<h1>System Health <span class="muted small">(real — last bootstrap evidence)</span></h1>
+<p class="prov">source: {{ health.source }}</p>
+<table class="kv">
+  <tr><td>Connection state</td><td><span class="badge {{ 'ok' if health.connected else 'bad' }}">{{ health.connection_state }}</span></td></tr>
+  <tr><td>Environment</td><td>{{ health.environment }}</td></tr>
+  <tr><td>Evidence time (UTC)</td><td>{{ health.evidence_time_utc }}</td></tr>
+  <tr><td>Server time (UTC)</td><td>{{ health.server_time_utc }}</td></tr>
+  <tr><td>Clock skew (s)</td><td>{{ '%.3f'|format(health.clock_skew_sec) if health.clock_skew_sec is not none else '—' }}</td></tr>
+  <tr><td>Market-data type</td><td>{{ health.market_data_type }}</td></tr>
+  <tr><td>Sample contract</td><td>{{ health.sample_symbol }} @ {{ health.sample_market_price }}</td></tr>
+</table>
+<h2>Instrument master (Step 2)</h2>
+<table class="kv">
+  <tr><td>Session date</td><td>{{ universe.session_date }}</td></tr>
+  <tr><td>Config fingerprint</td><td>{{ universe.config_fingerprint }}</td></tr>
+  <tr><td>Generated (UTC)</td><td>{{ universe.generated_utc }}</td></tr>
+  <tr><td>Underlyings</td><td>{{ universe.underlying_count }}</td></tr>
+  <tr><td>Options</td><td>{{ universe.option_count }}</td></tr>
+</table>
+{% if universe.underlyings %}
+<table class="data">
+  <thead><tr><th>canonical_key</th><th>symbol</th><th>type</th><th>ccy</th><th>exch</th><th>status</th></tr></thead>
+  <tbody>
+  {% for u in universe.underlyings %}
+    <tr><td>{{ u.canonical_key }}</td><td>{{ u.symbol }}</td><td>{{ u.sec_type }}</td><td>{{ u.currency }}</td><td>{{ u.exchange }}</td><td>{{ u.listing_status }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
