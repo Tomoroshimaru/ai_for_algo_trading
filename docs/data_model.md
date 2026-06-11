@@ -247,3 +247,25 @@ Verified end-to-end: a 21-business-day historical month reconstructed (20 OK, 1
 MISSING gap flagged not masked); replay-vs-live forward max_abs_diff = 0.0 on
 overlapping dates with the same code version; versioned archive isolated from the
 live tree. Missing data is surfaced, never interpolated silently.
+
+## Validation framework & anomaly detection (Step 14)
+Validation is treated as a PRODUCT: every flag is specific and actionable (which
+underlying, which maturity, which metric, which threshold) with a machine-readable
+reason_code and human context - no generic red banners (junior note).
+- **`src/validation/framework.py::run_validation`** runs 7 checks on a pipeline
+  RunResult: stale_data_rate, coverage, solver_convergence, forward_stability
+  (+forward_quality), surface_smoothness, no_arbitrage_butterfly/calendar,
+  reconciliation. Emits `validation_results` rows (PASS/WARN/FAIL) with
+  reason_code + metric_value + threshold + detail. Thresholds are configurable
+  via `ValidationThresholds`.
+- **`summarize`** -> daily pass/warn/fail roll-up (task b). **`triage_view`** ->
+  failures only, FAIL-first, with full context (task d / acceptance): an operator
+  sees the failing maturity and reason in seconds.
+- **`src/validation/anomaly.py`** flags metrics (quote counts, forward residuals,
+  fit errors, scenario losses) deviating > z_threshold from a trailing rolling
+  baseline (which excludes the current value). Emits `qc_anomalies` rows.
+- **Datasets**: `validation_results` (doubles as the triage table; metric_value
+  over run_date gives regression-monitoring trends) and `qc_anomalies`.
+
+Reason codes: COVERAGE_LOW, STALE_HIGH, FWD_RESIDUAL_HIGH, FWD_LOW_QUALITY,
+SOLVER_NONCONV, SURFACE_ROUGH, BUTTERFLY_ARB, CALENDAR_ARB, RECON_BREACH.

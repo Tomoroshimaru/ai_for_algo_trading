@@ -25,6 +25,7 @@ def test_all_required_datasets_exist():
         "model_prices", "greeks", "scenarios", "positions", "qc_results",
         "forward_diagnostics", "surface_grid", "risk_aggregates", "risk_recon",
         "scenario_defs", "scenario_results", "scenario_summary",
+        "validation_results", "qc_anomalies",
     }
     assert required == set(DATASETS)
 

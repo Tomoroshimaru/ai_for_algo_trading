@@ -283,6 +283,35 @@ _SCENARIO_SUMMARY = _with_common([
     pa.field("source_session_id", pa.string()),
 ])
 
+_VALIDATION_RESULTS = _with_common([
+    pa.field("check_ts", _TS, nullable=False),
+    pa.field("run_date", pa.string(), nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("target", pa.string(), nullable=False),       # ALL | expiry | instrument_key
+    pa.field("check_name", pa.string(), nullable=False),
+    pa.field("status", pa.string(), nullable=False),       # PASS | WARN | FAIL
+    pa.field("reason_code", pa.string()),                  # machine-readable reason
+    pa.field("metric_value", pa.float64()),                # the measured value (trend)
+    pa.field("threshold", pa.float64()),                   # the breached threshold
+    pa.field("detail", pa.string()),                       # human context / where to look
+    pa.field("source_session_id", pa.string()),
+])
+
+_QC_ANOMALIES = _with_common([
+    pa.field("check_ts", _TS, nullable=False),
+    pa.field("run_date", pa.string(), nullable=False),
+    pa.field("underlying", pa.string(), nullable=False),
+    pa.field("metric_name", pa.string(), nullable=False),
+    pa.field("value", pa.float64()),
+    pa.field("baseline_mean", pa.float64()),
+    pa.field("baseline_std", pa.float64()),
+    pa.field("zscore", pa.float64()),
+    pa.field("is_anomaly", pa.bool_()),
+    pa.field("n_baseline", pa.int32()),
+    pa.field("detail", pa.string()),
+    pa.field("source_session_id", pa.string()),
+])
+
 DATASETS: dict[str, Dataset] = {
     "raw_events": Dataset("raw_events", DataLayer.RAW, _RAW_EVENTS),
     "market_state": Dataset("market_state", DataLayer.NORMALIZED, _MARKET_STATE),
@@ -301,6 +330,8 @@ DATASETS: dict[str, Dataset] = {
     "scenario_summary": Dataset("scenario_summary", DataLayer.DERIVED, _SCENARIO_SUMMARY),
     "positions": Dataset("positions", DataLayer.DERIVED, _POSITIONS),
     "qc_results": Dataset("qc_results", DataLayer.DERIVED, _QC_RESULTS),
+    "validation_results": Dataset("validation_results", DataLayer.DERIVED, _VALIDATION_RESULTS),
+    "qc_anomalies": Dataset("qc_anomalies", DataLayer.DERIVED, _QC_ANOMALIES),
 }
 
 
